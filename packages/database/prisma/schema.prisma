@@ -1,0 +1,461 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────
+
+enum JobType {
+  PRODUCT_REVIEW
+  EVENT
+  SELF_PURCHASE
+  CONTENT_CREATION
+  AFFILIATE
+  OTHER
+}
+
+enum JobStatus {
+  DRAFT
+  NEW
+  WAITING_PRODUCT
+  PRODUCT_RECEIVED
+  CREATING
+  DEMO
+  REVISION
+  READY_TO_POST
+  POSTED
+  WAITING_PAYMENT
+  PAID
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum ContentType {
+  VIDEO
+  PHOTO
+  STORY
+  POST
+  OTHER
+}
+
+enum ContentStatus {
+  PLANNING
+  SHOOTING
+  EDITING
+  DEMO
+  REVISION
+  APPROVED
+  PUBLISHED
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUESTED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  E_WALLET
+  OTHER
+}
+
+enum NotificationType {
+  TASK_DUE
+  TASK_OVERDUE
+  PAYMENT_DUE
+  PAYMENT_OVERDUE
+  JOB_REMINDER
+}
+
+// ─────────────────────────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  avatarUrl    String?
+  phone        String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  tiktokAccounts TikTokAccount[]
+  brands         Brand[]
+  jobs           Job[]
+  jobTemplates   JobTemplate[]
+  notifications  Notification[]
+  jobNotes       JobNote[]
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TIKTOK ACCOUNT
+// ─────────────────────────────────────────────────────────────────
+
+model TikTokAccount {
+  id                   String    @id @default(cuid())
+  userId               String
+  tiktokUserId         String
+  username             String
+  displayName          String?
+  avatarUrl            String?
+  // NOTE: accessToken and refreshToken must be encrypted at rest in production
+  // They are NEVER returned to the frontend
+  accessToken          String?
+  refreshToken         String?
+  accessTokenExpiresAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("tiktok_accounts")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BRAND
+// ─────────────────────────────────────────────────────────────────
+
+model Brand {
+  id           String  @id @default(cuid())
+  userId       String
+  name         String
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  note         String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id])
+  jobs Job[]
+
+  @@index([userId])
+  @@index([deletedAt])
+  // Partial unique index: brand name unique per user among active records
+  // Applied via raw SQL migration — Prisma does not support partial unique indexes natively
+  @@map("brands")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// JOB TEMPLATE
+// ─────────────────────────────────────────────────────────────────
+
+model JobTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  jobType     JobType?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id])
+  templateTasks TemplateTask[]
+  jobs          Job[]
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("job_templates")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TEMPLATE TASK
+// ─────────────────────────────────────────────────────────────────
+
+model TemplateTask {
+  id           String  @id @default(cuid())
+  templateId   String
+  title        String
+  description  String?
+  order        Int
+  daysBeforePost Int   @default(0)
+  isRequired   Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  template JobTemplate @relation(fields: [templateId], references: [id])
+
+  @@index([templateId])
+  @@index([deletedAt])
+  @@map("template_tasks")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// JOB
+// ─────────────────────────────────────────────────────────────────
+
+model Job {
+  id          String  @id @default(cuid())
+  userId      String
+  brandId     String
+  templateId  String?
+
+  name        String
+  description String?
+  jobType     JobType   @default(OTHER)
+  status      JobStatus @default(NEW)
+
+  quantity    Int?
+  requirement String?
+  brief       String?
+
+  receivedDate         DateTime?
+  demoDate             DateTime?
+  postDate             DateTime?
+  paymentExpectedDate  DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  deletedAt   DateTime?
+
+  // Relations
+  user     User         @relation(fields: [userId], references: [id])
+  brand    Brand        @relation(fields: [brandId], references: [id])
+  template JobTemplate? @relation(fields: [templateId], references: [id])
+
+  tasks       JobTask[]
+  contents    Content[]
+  payments    Payment[]
+  notes       JobNote[]
+  attachments JobAttachment[]
+
+  @@index([userId])
+  @@index([brandId])
+  @@index([status])
+  @@index([postDate])
+  @@index([paymentExpectedDate])
+  @@index([deletedAt])
+  @@map("jobs")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// JOB TASK
+// ─────────────────────────────────────────────────────────────────
+
+model JobTask {
+  id          String     @id @default(cuid())
+  jobId       String
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  dueDate     DateTime?
+  completedAt DateTime?
+  order       Int        @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("job_tasks")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CONTENT
+// ─────────────────────────────────────────────────────────────────
+
+model Content {
+  id         String        @id @default(cuid())
+  jobId      String
+  type       ContentType   @default(VIDEO)
+  title      String?
+  status     ContentStatus @default(PLANNING)
+  caption    String?
+  tiktokUrl  String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+  deletedAt   DateTime?
+
+  // Relations
+  job    Job            @relation(fields: [jobId], references: [id])
+  assets ContentAsset[]
+
+  @@index([jobId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("contents")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CONTENT ASSET
+// ─────────────────────────────────────────────────────────────────
+
+model ContentAsset {
+  id        String  @id @default(cuid())
+  contentId String
+  type      String  // e.g. "raw_video", "edited_video", "photo", "screenshot"
+  fileName  String
+  fileUrl   String  // URL to object storage (MinIO/S3 in production)
+  fileSize  Int?    // bytes
+  mimeType  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  content Content @relation(fields: [contentId], references: [id])
+
+  @@index([contentId])
+  @@index([deletedAt])
+  @@map("content_assets")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PAYMENT
+// ─────────────────────────────────────────────────────────────────
+
+model Payment {
+  id            String        @id @default(cuid())
+  jobId         String
+  amount        Decimal       @db.Decimal(15, 2)
+  currency      String        @default("VND")
+  status        PaymentStatus @default(PENDING)
+  expectedDate  DateTime?
+  paidDate      DateTime?
+  paymentMethod PaymentMethod @default(BANK_TRANSFER)
+  note          String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([status])
+  @@index([expectedDate])
+  @@index([deletedAt])
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// JOB NOTE
+// ─────────────────────────────────────────────────────────────────
+
+model JobNote {
+  id      String @id @default(cuid())
+  jobId   String
+  userId  String
+  content String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  job  Job  @relation(fields: [jobId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([jobId])
+  @@index([deletedAt])
+  @@map("job_notes")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// JOB ATTACHMENT
+// ─────────────────────────────────────────────────────────────────
+
+model JobAttachment {
+  id       String  @id @default(cuid())
+  jobId    String
+  fileName String
+  fileUrl  String
+  fileType String?
+  fileSize Int?    // bytes
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  job Job @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([deletedAt])
+  @@map("job_attachments")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// NOTIFICATION
+// ─────────────────────────────────────────────────────────────────
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String
+  jobId   String?
+  taskId  String?
+  type    NotificationType
+  title   String
+  message String
+  isRead  Boolean          @default(false)
+
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([scheduledAt])
+  @@index([deletedAt])
+  @@map("notifications")
+}

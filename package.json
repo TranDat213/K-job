@@ -1,0 +1,25 @@
+{
+  "name": "koc-manager",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "db:generate": "npm run db:generate --workspace=packages/database",
+    "db:migrate": "npm run db:migrate --workspace=packages/database",
+    "db:migrate:prod": "npm run db:migrate:prod --workspace=packages/database",
+    "db:seed": "npm run db:seed --workspace=packages/database",
+    "db:studio": "npm run db:studio --workspace=packages/database",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspace=apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.5.4"
+  }
+}
