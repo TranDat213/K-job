@@ -1,68 +1,63 @@
 import { Injectable } from '@nestjs/common';
-import { UsersRepository } from './users.repository';
+import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, User } from '@prisma/client';
 
-export type CreateUserInput = {
-  email: string;
-  passwordHash: string;
-  name: string;
-  phone?: string;
-};
-
-export type UpdateUserInput = {
-  name?: string;
-  phone?: string;
-  avatarUrl?: string;
-};
-
 @Injectable()
-export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+export class UsersRepository {
+  constructor(private readonly prisma: PrismaService) {}
 
   // ─────────────────────────────────────────────────────────────────
-  // Find by email — delegates DB lookup to repository
+  // Find active user by email (deletedAt IS NULL)
   // ─────────────────────────────────────────────────────────────────
   async findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findByEmail(email);
+    return this.prisma.user.findFirst({
+      where: {
+        email,
+        deletedAt: null,
+      },
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Find by id — delegates DB lookup to repository
+  // Find active user by ID (deletedAt IS NULL)
   // ─────────────────────────────────────────────────────────────────
   async findById(id: string): Promise<User | null> {
-    return this.usersRepository.findById(id);
+    return this.prisma.user.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Create user — business service logic + repository save
+  // Create user
   // ─────────────────────────────────────────────────────────────────
-  async create(input: CreateUserInput): Promise<User> {
-    const data: Prisma.UserCreateInput = {
-      email: input.email,
-      passwordHash: input.passwordHash,
-      name: input.name,
-      phone: input.phone,
-    };
-    return this.usersRepository.create(data);
+  async create(data: Prisma.UserCreateInput): Promise<User> {
+    return this.prisma.user.create({
+      data,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Update user profile
+  // Update user
   // ─────────────────────────────────────────────────────────────────
-  async update(id: string, input: UpdateUserInput): Promise<User> {
-    const data: Prisma.UserUpdateInput = {
-      name: input.name,
-      phone: input.phone,
-      avatarUrl: input.avatarUrl,
-    };
-    return this.usersRepository.update(id, data);
+  async update(id: string, data: Prisma.UserUpdateInput): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
   // Soft delete user
   // ─────────────────────────────────────────────────────────────────
-  async remove(id: string): Promise<User> {
-    return this.usersRepository.softDelete(id);
+  async softDelete(id: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
   }
 }
-

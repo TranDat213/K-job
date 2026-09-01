@@ -1,7 +1,93 @@
 @import "tailwindcss";
 
+@theme {
+  /* Main Pastel Serenity Brand Tokens */
+  --color-primary: #DF6D93;
+  --color-primary-hover: #D45B82;
+  --color-primary-active: #C74A72;
+  --color-primary-foreground: #FFFFFF;
+
+  --color-primary-soft: #E396AF;
+  --color-primary-soft-hover: #DA85A0;
+  --color-primary-soft-foreground: #262626;
+
+  --color-secondary: #ACD9DD;
+  --color-secondary-hover: #9ACCCF;
+  --color-secondary-foreground: #1A383B;
+
+  --color-pale-pink: #EDCDE3;
+  --color-pale-pink-foreground: #3D1D33;
+
+  --color-soft-sage: #EAF1D7;
+  --color-soft-sage-foreground: #23381B;
+
+  --color-accent: #EAF1D7;
+  --color-accent-foreground: #23381B;
+
+  --color-surface-accent: #EDCDE3;
+  --color-surface-accent-foreground: #3D1D33;
+
+  /* Neutral System */
+  --color-background: #FAFAF8;
+  --color-foreground: #262626;
+
+  --color-card: #FFFFFF;
+  --color-card-foreground: #262626;
+  --color-card-border: #E5E5E2;
+
+  --color-muted: #F7F7F5;
+  --color-muted-foreground: #666666;
+  --color-text-muted: #8A8A8A;
+
+  --color-border: #E5E5E2;
+  --color-input: #FFFFFF;
+  --color-input-border: #E5E5E2;
+  --color-ring: #DF6D93;
+
+  /* Semantic Feedback Tokens */
+  --color-success: #EAF1D7;
+  --color-success-foreground: #23381B;
+
+  --color-info: #ACD9DD;
+  --color-info-foreground: #1A383B;
+
+  --color-warning: #FDF3D7;
+  --color-warning-foreground: #5C4813;
+
+  --color-destructive: #FADBD8;
+  --color-destructive-foreground: #78281F;
+}
+
 @layer base {
+  :root {
+    --background: #FAFAF8;
+    --foreground: #262626;
+
+    --card: #FFFFFF;
+    --card-foreground: #262626;
+
+    --primary: #DF6D93;
+    --primary-foreground: #FFFFFF;
+
+    --secondary: #ACD9DD;
+    --secondary-foreground: #1A383B;
+
+    --muted: #F7F7F5;
+    --muted-foreground: #666666;
+
+    --accent: #EAF1D7;
+    --accent-foreground: #23381B;
+
+    --destructive: #FADBD8;
+    --destructive-foreground: #78281F;
+
+    --border: #E5E5E2;
+    --input: #FFFFFF;
+    --ring: #DF6D93;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-100;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
   }
 }

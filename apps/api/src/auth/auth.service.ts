@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users/users.service';
+import { AuthRepository } from './auth.repository';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
@@ -31,7 +31,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly usersService: UsersService,
+    private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -42,7 +42,7 @@ export class AuthService {
 
   async register(dto: RegisterDto): Promise<{ user: SafeUser; token: string }> {
     // Check if email already taken (among active users)
-    const existing = await this.usersService.findByEmail(dto.email);
+    const existing = await this.authRepository.findUserByEmail(dto.email);
     if (existing) {
       throw new ConflictException('An account with this email already exists');
     }
@@ -51,7 +51,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
     // Create user
-    const user = await this.usersService.create({
+    const user = await this.authRepository.createUser({
       email: dto.email,
       passwordHash,
       name: dto.name,
@@ -72,7 +72,7 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<{ user: SafeUser; token: string }> {
     // Find active user
-    const user = await this.usersService.findByEmail(dto.email);
+    const user = await this.authRepository.findUserByEmail(dto.email);
     if (!user) {
       // Use generic message to prevent email enumeration
       throw new UnauthorizedException('Invalid email or password');

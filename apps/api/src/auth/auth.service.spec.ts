@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { UsersService } from '../users/users.service';
+import { AuthRepository } from './auth.repository';
 import * as bcrypt from 'bcrypt';
 
 // ─────────────────────────────────────────────────────────────────
@@ -22,10 +22,10 @@ const mockUser = {
   deletedAt: null,
 };
 
-const mockUsersService = {
-  findByEmail: jest.fn(),
-  findById: jest.fn(),
-  create: jest.fn(),
+const mockAuthRepository = {
+  findUserByEmail: jest.fn(),
+  findUserById: jest.fn(),
+  createUser: jest.fn(),
 };
 
 const mockJwtService = {
@@ -61,7 +61,7 @@ describe('AuthService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
-        { provide: UsersService, useValue: mockUsersService },
+        { provide: AuthRepository, useValue: mockAuthRepository },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
       ],
@@ -79,8 +79,8 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('should register a new user and return safe user + token', async () => {
-      mockUsersService.findByEmail.mockResolvedValue(null);
-      mockUsersService.create.mockResolvedValue(mockUser);
+      mockAuthRepository.findUserByEmail.mockResolvedValue(null);
+      mockAuthRepository.createUser.mockResolvedValue(mockUser);
 
       const result = await service.register({
         email: 'test@example.com',
@@ -92,11 +92,11 @@ describe('AuthService', () => {
       expect(result.token).toBe('mock.jwt.token');
       expect(result.user).not.toHaveProperty('passwordHash');
       expect(result.user).not.toHaveProperty('deletedAt');
-      expect(mockUsersService.create).toHaveBeenCalledTimes(1);
+      expect(mockAuthRepository.createUser).toHaveBeenCalledTimes(1);
     });
 
     it('should throw ConflictException if email already exists', async () => {
-      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+      mockAuthRepository.findUserByEmail.mockResolvedValue(mockUser);
 
       await expect(
         service.register({
@@ -106,12 +106,12 @@ describe('AuthService', () => {
         }),
       ).rejects.toThrow(ConflictException);
 
-      expect(mockUsersService.create).not.toHaveBeenCalled();
+      expect(mockAuthRepository.createUser).not.toHaveBeenCalled();
     });
 
     it('should hash the password (not store plain text)', async () => {
-      mockUsersService.findByEmail.mockResolvedValue(null);
-      mockUsersService.create.mockResolvedValue(mockUser);
+      mockAuthRepository.findUserByEmail.mockResolvedValue(null);
+      mockAuthRepository.createUser.mockResolvedValue(mockUser);
 
       await service.register({
         email: 'test@example.com',
@@ -119,7 +119,7 @@ describe('AuthService', () => {
         name: 'Test User',
       });
 
-      const createCall = mockUsersService.create.mock.calls[0][0];
+      const createCall = mockAuthRepository.createUser.mock.calls[0][0];
       // passwordHash should NOT equal the plain text password
       expect(createCall.passwordHash).not.toBe('Password1');
       // It should be a bcrypt hash
@@ -134,7 +134,7 @@ describe('AuthService', () => {
   describe('login', () => {
     it('should login with correct credentials', async () => {
       const hashedPassword = await bcrypt.hash('Password1', 10);
-      mockUsersService.findByEmail.mockResolvedValue({
+      mockAuthRepository.findUserByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hashedPassword,
       });
@@ -150,7 +150,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
-      mockUsersService.findByEmail.mockResolvedValue(null);
+      mockAuthRepository.findUserByEmail.mockResolvedValue(null);
 
       await expect(
         service.login({ email: 'notfound@example.com', password: 'Password1' }),
@@ -159,7 +159,7 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if password is wrong', async () => {
       const hashedPassword = await bcrypt.hash('CorrectPassword1', 10);
-      mockUsersService.findByEmail.mockResolvedValue({
+      mockAuthRepository.findUserByEmail.mockResolvedValue({
         ...mockUser,
         passwordHash: hashedPassword,
       });
@@ -173,7 +173,7 @@ describe('AuthService', () => {
     });
 
     it('should use a generic error message to prevent email enumeration', async () => {
-      mockUsersService.findByEmail.mockResolvedValue(null);
+      mockAuthRepository.findUserByEmail.mockResolvedValue(null);
 
       try {
         await service.login({
@@ -189,3 +189,4 @@ describe('AuthService', () => {
     });
   });
 });
+
