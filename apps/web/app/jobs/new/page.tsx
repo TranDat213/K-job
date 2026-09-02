@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { brandsApi, jobsApi, Brand, CreateJobPayload } from '../../../lib/api';
 
 const JOB_TYPES = [
   { value: 'PRODUCT_REVIEW', label: 'Review sản phẩm' },
@@ -17,28 +18,30 @@ export default function NewJobPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
 
-  // ponytail: form controlled simply with a FormData on submit, not react-hook-form yet
+  useEffect(() => {
+    brandsApi.getAll()
+      .then((res) => setBrands(res.data))
+      .catch(() => {/* brands failed to load — select stays empty */})
+      .finally(() => setBrandsLoading(false));
+  }, []);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const form = new FormData(e.currentTarget);
-    const body = Object.fromEntries(
-      [...form.entries()].filter(([, v]) => v !== ''),
-    );
+    const fd = new FormData(e.currentTarget);
+    // Build payload — omit empty strings
+    const payload: CreateJobPayload = {} as any;
+    fd.forEach((value, key) => {
+      if (value !== '') (payload as any)[key] = value;
+    });
 
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-      const res = await fetch(`${API_BASE}/api/jobs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Tạo job thất bại');
+      await jobsApi.create(payload);
       router.push('/jobs');
       router.refresh();
     } catch (err: any) {
@@ -61,14 +64,8 @@ export default function NewJobPage() {
         </div>
       </div>
 
-      {/* Notice: BE not ready yet */}
-      <div className="bg-warning/30 border border-warning-foreground/20 rounded-xl px-4 py-3 text-sm text-warning-foreground flex items-center gap-2">
-        <span>⚠️</span>
-        <span>Tính năng tạo job sẽ hoạt động sau khi hoàn thiện phần Nhãn hàng. Hiện tại form đang ở chế độ xem trước.</span>
-      </div>
-
       {error && (
-        <div className="bg-destructive/15 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive-foreground flex items-center gap-2">
+        <div className="bg-destructive/15 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive flex items-center gap-2">
           <span>⚠️</span><span>{error}</span>
         </div>
       )}
@@ -80,10 +77,7 @@ export default function NewJobPage() {
             Tên job <span className="text-primary">*</span>
           </label>
           <input
-            id="name"
-            name="name"
-            type="text"
-            required
+            id="name" name="name" type="text" required
             placeholder="VD: Review son Revive tháng 9"
             className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
           />
@@ -95,17 +89,23 @@ export default function NewJobPage() {
             Nhãn hàng <span className="text-primary">*</span>
           </label>
           <select
-            id="brandId"
-            name="brandId"
-            required
-            disabled
-            className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-60 cursor-not-allowed"
+            id="brandId" name="brandId" required
+            disabled={brandsLoading}
+            className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-60"
           >
-            <option value="">— Chưa có nhãn hàng nào —</option>
+            <option value="">
+              {brandsLoading ? 'Đang tải...' : brands.length === 0 ? '— Chưa có nhãn hàng —' : '— Chọn nhãn hàng —'}
+            </option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
           </select>
-          <p className="text-xs text-muted-foreground mt-1">
-            <Link href="/brands" className="text-primary hover:text-primary-hover">Tạo nhãn hàng</Link> trước rồi quay lại.
-          </p>
+          {!brandsLoading && brands.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              <Link href="/brands" className="text-primary hover:text-primary-hover">Tạo nhãn hàng</Link>{' '}
+              trước rồi quay lại.
+            </p>
+          )}
         </div>
 
         {/* Loại job */}
@@ -114,8 +114,7 @@ export default function NewJobPage() {
             Loại job
           </label>
           <select
-            id="jobType"
-            name="jobType"
+            id="jobType" name="jobType"
             className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
           >
             {JOB_TYPES.map((t) => (
@@ -130,9 +129,7 @@ export default function NewJobPage() {
             Mô tả
           </label>
           <textarea
-            id="description"
-            name="description"
-            rows={3}
+            id="description" name="description" rows={3}
             placeholder="Mô tả nội dung job..."
             className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
           />
@@ -145,9 +142,7 @@ export default function NewJobPage() {
               Ngày đăng
             </label>
             <input
-              id="postDate"
-              name="postDate"
-              type="date"
+              id="postDate" name="postDate" type="date"
               className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
             />
           </div>
@@ -156,23 +151,19 @@ export default function NewJobPage() {
               Ngày nhận tiền dự kiến
             </label>
             <input
-              id="paymentExpectedDate"
-              name="paymentExpectedDate"
-              type="date"
+              id="paymentExpectedDate" name="paymentExpectedDate" type="date"
               className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all"
             />
           </div>
         </div>
 
-        {/* Brief + Requirement */}
+        {/* Brief */}
         <div>
           <label htmlFor="brief" className="block text-sm font-medium text-foreground mb-1.5">
             Brief / yêu cầu từ nhãn hàng
           </label>
           <textarea
-            id="brief"
-            name="brief"
-            rows={3}
+            id="brief" name="brief" rows={3}
             placeholder="Dán link brief hoặc tóm tắt yêu cầu..."
             className="w-full px-4 py-2.5 bg-input border border-input-border rounded-xl text-sm text-foreground placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
           />
@@ -188,7 +179,7 @@ export default function NewJobPage() {
           </Link>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || brandsLoading}
             className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-xl shadow-sm shadow-primary/20 hover:bg-primary-hover active:bg-primary-active transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Đang tạo...' : 'Tạo job'}

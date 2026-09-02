@@ -3,6 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { BrandsModule } from './brands/brands.module';
+import { JobsModule } from './jobs/jobs.module';
+import { JobTasksModule } from './job-tasks/job-tasks.module';
 
 @Module({
   imports: [
@@ -18,12 +21,12 @@ import { UsersModule } from './users/users.module';
     // ── Feature modules ──────────────────────────────────────────
     AuthModule,
     UsersModule,
+    BrandsModule,
+    JobsModule,
+    JobTasksModule,
 
     // Future modules (add as implemented):
-    // BrandsModule,
     // JobTemplatesModule,
-    // JobsModule,
-    // JobTasksModule,
     // ContentsModule,
     // PaymentsModule,
     // NotificationsModule,
