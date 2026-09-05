@@ -115,6 +115,29 @@ export interface Job {
   _count?: { tasks: number };
 }
 
+export interface JobNote {
+  id: string;
+  jobId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface JobAttachment {
+  id: string;
+  jobId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string | null;
+  fileSize: number | null;
+  createdAt: string;
+}
+
 export interface JobDetail extends Job {
   description: string | null;
   quantity: number | null;
@@ -123,9 +146,11 @@ export interface JobDetail extends Job {
   receivedDate: string | null;
   demoDate: string | null;
   templateId: string | null;
-  template: { id: string; name: string } | null;
+  template: { id: string; name: string; scope?: string } | null;
   tasks: JobTask[];
-  payments: Payment[];
+  payments: PaymentFull[];
+  notes: JobNote[];
+  attachments: JobAttachment[];
 }
 
 export interface JobTask {
@@ -163,6 +188,14 @@ export type CreateJobPayload = {
   demoDate?: string;
   postDate?: string;
   paymentExpectedDate?: string;
+  paymentAmount?: number;
+  initialNote?: string;
+  attachments?: {
+    fileName: string;
+    fileUrl: string;
+    fileType?: string;
+    fileSize?: number;
+  }[];
 };
 
 export type JobsListParams = {
@@ -172,6 +205,12 @@ export type JobsListParams = {
   brandId?: string;
   search?: string;
 };
+
+export interface JobStats {
+  total: number;
+  inProgress: number;
+  completed: number;
+}
 
 export const jobsApi = {
   getAll: (params: JobsListParams = {}) => {
@@ -184,6 +223,7 @@ export const jobsApi = {
     const query = qs.toString();
     return fetchApi<Job[]>(`/jobs${query ? `?${query}` : ''}`);
   },
+  getStats: () => fetchApi<JobStats>('/jobs/stats'),
   getOne: (id: string) => fetchApi<JobDetail>(`/jobs/${id}`),
   create: (body: CreateJobPayload) =>
     fetchApi<JobDetail>('/jobs', { method: 'POST', body: JSON.stringify(body) }),
@@ -191,14 +231,45 @@ export const jobsApi = {
     fetchApi<Job>(`/jobs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   remove: (id: string) =>
     fetchApi(`/jobs/${id}`, { method: 'DELETE' }),
+  addNote: (jobId: string, content: string) =>
+    fetchApi<JobNote>(`/jobs/${jobId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
+  removeNote: (jobId: string, noteId: string) =>
+    fetchApi(`/jobs/${jobId}/notes/${noteId}`, { method: 'DELETE' }),
+  addAttachment: (
+    jobId: string,
+    body: { fileName: string; fileUrl: string; fileType?: string; fileSize?: number },
+  ) =>
+    fetchApi<JobAttachment>(`/jobs/${jobId}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  removeAttachment: (jobId: string, attachmentId: string) =>
+    fetchApi(`/jobs/${jobId}/attachments/${attachmentId}`, { method: 'DELETE' }),
 };
 
 // ─────────────────────────────────────────────────────────────────
 // JOB TASKS API
 // ─────────────────────────────────────────────────────────────────
 
+export interface TodayTaskItem extends JobTask {
+  job: {
+    id: string;
+    name: string;
+    brand: { id: string; name: string };
+  };
+}
+
+export interface TodayTasksResponse {
+  count: number;
+  tasks: TodayTaskItem[];
+}
+
 export const tasksApi = {
   getAll: (jobId: string) => fetchApi<JobTask[]>(`/jobs/${jobId}/tasks`),
+  getToday: () => fetchApi<TodayTasksResponse>('/tasks/today'),
   create: (jobId: string, body: { title: string; dueDate?: string; order?: number }) =>
     fetchApi<JobTask>(`/jobs/${jobId}/tasks`, { method: 'POST', body: JSON.stringify(body) }),
   update: (taskId: string, body: Partial<{ title: string; status: string; dueDate: string }>) =>
@@ -207,3 +278,121 @@ export const tasksApi = {
     fetchApi(`/tasks/${taskId}`, { method: 'DELETE' }),
 };
 
+// ─────────────────────────────────────────────────────────────────
+// JOB TEMPLATES API
+// ─────────────────────────────────────────────────────────────────
+
+export interface JobTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  jobType: string | null;
+  scope: 'SYSTEM' | 'USER';
+  ownerId: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { templateTasks: number };
+}
+
+export interface TemplateTask {
+  id: string;
+  templateId: string;
+  title: string;
+  description: string | null;
+  order: number;
+  daysBeforePost: number;
+  isRequired: boolean;
+}
+
+export interface JobTemplateDetail extends JobTemplate {
+  templateTasks: TemplateTask[];
+}
+
+export type CreateTemplatePayload = {
+  name: string;
+  description?: string;
+  jobType?: string;
+};
+
+export type CreateTemplateTaskPayload = {
+  title: string;
+  description?: string;
+  order: number;
+  daysBeforePost?: number;
+  isRequired?: boolean;
+};
+
+export const templatesApi = {
+  getAll: () => fetchApi<JobTemplate[]>('/job-templates'),
+  getOne: (id: string) => fetchApi<JobTemplateDetail>(`/job-templates/${id}`),
+  create: (body: CreateTemplatePayload) =>
+    fetchApi<JobTemplate>('/job-templates', { method: 'POST', body: JSON.stringify(body) }),
+  copy: (id: string) =>
+    fetchApi<JobTemplateDetail>(`/job-templates/${id}/copy`, { method: 'POST' }),
+  update: (id: string, body: Partial<CreateTemplatePayload>) =>
+    fetchApi<JobTemplate>(`/job-templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  remove: (id: string) => fetchApi(`/job-templates/${id}`, { method: 'DELETE' }),
+
+  // Template tasks
+  createTask: (templateId: string, body: CreateTemplateTaskPayload) =>
+    fetchApi<TemplateTask>(`/job-templates/${templateId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateTask: (taskId: string, body: Partial<CreateTemplateTaskPayload>) =>
+    fetchApi<TemplateTask>(`/template-tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  removeTask: (taskId: string) => fetchApi(`/template-tasks/${taskId}`, { method: 'DELETE' }),
+};
+
+
+// ─────────────────────────────────────────────────────────────────
+// PAYMENTS API
+// ─────────────────────────────────────────────────────────────────
+
+export interface PaymentFull {
+  id: string;
+  jobId: string;
+  amount: string; // Prisma Decimal serialised as string
+  currency: string;
+  status: string;
+  expectedDate: string | null;
+  paidDate: string | null;
+  paymentMethod: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export type CreatePaymentPayload = {
+  amount: number;
+  currency?: string;
+  status?: string;
+  expectedDate?: string;
+  paidDate?: string;
+  paymentMethod?: string;
+  note?: string;
+};
+
+export interface PaymentStats {
+  monthRevenue: number;
+  pendingRevenue: number;
+}
+
+export const paymentsApi = {
+  getStats: () => fetchApi<PaymentStats>('/payments/stats'),
+  getAll: (jobId: string) => fetchApi<PaymentFull[]>(`/jobs/${jobId}/payments`),
+  create: (jobId: string, body: CreatePaymentPayload) =>
+    fetchApi<PaymentFull>(`/jobs/${jobId}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (paymentId: string, body: Partial<CreatePaymentPayload>) =>
+    fetchApi<PaymentFull>(`/payments/${paymentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  remove: (paymentId: string) => fetchApi(`/payments/${paymentId}`, { method: 'DELETE' }),
+};

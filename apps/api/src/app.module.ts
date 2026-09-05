@@ -6,6 +6,8 @@ import { UsersModule } from './users/users.module';
 import { BrandsModule } from './brands/brands.module';
 import { JobsModule } from './jobs/jobs.module';
 import { JobTasksModule } from './job-tasks/job-tasks.module';
+import { JobTemplatesModule } from './job-templates/job-templates.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -24,11 +26,11 @@ import { JobTasksModule } from './job-tasks/job-tasks.module';
     BrandsModule,
     JobsModule,
     JobTasksModule,
+    JobTemplatesModule,
+    PaymentsModule,
 
     // Future modules (add as implemented):
-    // JobTemplatesModule,
     // ContentsModule,
-    // PaymentsModule,
     // NotificationsModule,
     // TikTokModule,
   ],

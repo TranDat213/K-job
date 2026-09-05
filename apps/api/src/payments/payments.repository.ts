@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { JobTask, Prisma, TaskStatus } from '@prisma/client';
+import { Payment, Prisma, PaymentStatus } from '@prisma/client';
 
-type TaskWithJobOwner = JobTask & { job: { userId: string } };
+type PaymentWithJobOwner = Payment & { job: { userId: string } };
 
 @Injectable()
-export class JobTasksRepository {
+export class PaymentsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   // ─────────────────────────────────────────────────────────────────
-  // Find job owner (for ownership assertion)
+  // Validate job belongs to user (for ownership assertion)
   // ─────────────────────────────────────────────────────────────────
   async findJobOwner(jobId: string): Promise<{ userId: string } | null> {
     return this.prisma.job.findFirst({
@@ -19,81 +19,87 @@ export class JobTasksRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Find task with its job's userId (for ownership assertion)
+  // Find payment with its job's userId (for ownership assertion)
   // ─────────────────────────────────────────────────────────────────
-  async findTaskWithOwner(taskId: string): Promise<TaskWithJobOwner | null> {
-    return this.prisma.jobTask.findFirst({
-      where: { id: taskId, deletedAt: null },
+  async findPaymentWithOwner(paymentId: string): Promise<PaymentWithJobOwner | null> {
+    return this.prisma.payment.findFirst({
+      where: { id: paymentId, deletedAt: null },
       include: { job: { select: { userId: true } } },
     }) as any;
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Find all active tasks for a job ordered by position
+  // Find all active payments for a job
   // ─────────────────────────────────────────────────────────────────
-  async findAllByJob(jobId: string): Promise<JobTask[]> {
-    return this.prisma.jobTask.findMany({
+  async findAllByJob(jobId: string): Promise<Payment[]> {
+    return this.prisma.payment.findMany({
       where: { jobId, deletedAt: null },
-      orderBy: { order: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Create task
+  // Create payment
   // ─────────────────────────────────────────────────────────────────
-  async create(data: Prisma.JobTaskCreateInput): Promise<JobTask> {
-    return this.prisma.jobTask.create({ data });
+  async create(data: Prisma.PaymentCreateInput): Promise<Payment> {
+    return this.prisma.payment.create({ data });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Update task
+  // Update payment
   // ─────────────────────────────────────────────────────────────────
-  async update(id: string, data: Prisma.JobTaskUpdateInput): Promise<JobTask> {
-    return this.prisma.jobTask.update({ where: { id }, data });
+  async update(id: string, data: Prisma.PaymentUpdateInput): Promise<Payment> {
+    return this.prisma.payment.update({ where: { id }, data });
   }
 
   // ─────────────────────────────────────────────────────────────────
   // Soft delete
   // ─────────────────────────────────────────────────────────────────
   async softDelete(id: string): Promise<void> {
-    await this.prisma.jobTask.update({
+    await this.prisma.payment.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Get today's and overdue tasks for a user
+  // Get monthly payment stats for a user
   // ─────────────────────────────────────────────────────────────────
-  async getTodayTasks(userId: string, endOfToday: Date, limit = 10) {
-    const where: Prisma.JobTaskWhereInput = {
+  async getMonthlyStats(userId: string, startOfMonth: Date, endOfMonth: Date) {
+    const baseWhere: Prisma.PaymentWhereInput = {
       deletedAt: null,
-      status: { notIn: [TaskStatus.COMPLETED, TaskStatus.SKIPPED] },
-      dueDate: { lte: endOfToday },
       job: {
         userId,
         deletedAt: null,
       },
     };
 
-    const [count, tasks] = await Promise.all([
-      this.prisma.jobTask.count({ where }),
-      this.prisma.jobTask.findMany({
-        where,
-        include: {
-          job: {
-            select: {
-              id: true,
-              name: true,
-              brand: { select: { id: true, name: true } },
-            },
+    const [paidThisMonth, pendingPayments] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: {
+          ...baseWhere,
+          status: PaymentStatus.PAID,
+          OR: [
+            { paidDate: { gte: startOfMonth, lte: endOfMonth } },
+            { paidDate: null, updatedAt: { gte: startOfMonth, lte: endOfMonth } },
+          ],
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          ...baseWhere,
+          status: {
+            in: [PaymentStatus.PENDING, PaymentStatus.REQUESTED, PaymentStatus.OVERDUE],
           },
         },
-        orderBy: { dueDate: 'asc' },
-        take: limit,
+        _sum: { amount: true },
       }),
     ]);
 
-    return { count, tasks };
+    return {
+      monthRevenue: paidThisMonth._sum.amount ?? 0,
+      pendingRevenue: pendingPayments._sum.amount ?? 0,
+    };
   }
 }

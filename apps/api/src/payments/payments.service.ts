@@ -3,93 +3,110 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { JobTasksRepository } from './job-tasks.repository';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
-import { TaskStatus } from '@prisma/client';
+import { PaymentsRepository } from './payments.repository';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
+import { PaymentStatus } from '@prisma/client';
 
 @Injectable()
-export class JobTasksService {
-  constructor(private readonly jobTasksRepository: JobTasksRepository) {}
+export class PaymentsService {
+  constructor(private readonly paymentsRepository: PaymentsRepository) {}
 
   // ─────────────────────────────────────────────────────────────────
   // Ownership guards
   // ─────────────────────────────────────────────────────────────────
   private async assertJobOwner(userId: string, jobId: string) {
-    const job = await this.jobTasksRepository.findJobOwner(jobId);
+    const job = await this.paymentsRepository.findJobOwner(jobId);
     if (!job) throw new NotFoundException('Job not found');
     if (job.userId !== userId) throw new ForbiddenException('Access denied');
   }
 
-  private async assertTaskOwner(userId: string, taskId: string) {
-    const task = await this.jobTasksRepository.findTaskWithOwner(taskId);
-    if (!task) throw new NotFoundException('Task not found');
-    if (task.job.userId !== userId) throw new ForbiddenException('Access denied');
-    return task;
+  private async assertPaymentOwner(userId: string, paymentId: string) {
+    const payment = await this.paymentsRepository.findPaymentWithOwner(paymentId);
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.job.userId !== userId) throw new ForbiddenException('Access denied');
+    return payment;
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // FIND ALL tasks for a job
+  // FIND ALL payments for a job
   // ─────────────────────────────────────────────────────────────────
   async findAll(userId: string, jobId: string) {
     await this.assertJobOwner(userId, jobId);
-    return this.jobTasksRepository.findAllByJob(jobId);
+    return this.paymentsRepository.findAllByJob(jobId);
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // CREATE task
+  // CREATE payment
   // ─────────────────────────────────────────────────────────────────
-  async create(userId: string, jobId: string, dto: CreateTaskDto) {
+  async create(userId: string, jobId: string, dto: CreatePaymentDto) {
     await this.assertJobOwner(userId, jobId);
-    return this.jobTasksRepository.create({
+
+    const toDate = (s?: string) => (s ? new Date(s) : undefined);
+
+    return this.paymentsRepository.create({
       job: { connect: { id: jobId } },
-      title: dto.title,
-      description: dto.description,
-      status: dto.status ?? TaskStatus.TODO,
-      dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-      order: dto.order ?? 0,
+      amount: dto.amount,
+      currency: dto.currency ?? 'VND',
+      status: dto.status ?? PaymentStatus.PENDING,
+      expectedDate: toDate(dto.expectedDate),
+      paidDate: toDate(dto.paidDate),
+      paymentMethod: dto.paymentMethod,
+      note: dto.note,
     });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // UPDATE task  — completedAt business logic
+  // UPDATE payment — sets paidDate automatically when status → PAID
   // ─────────────────────────────────────────────────────────────────
-  async update(userId: string, taskId: string, dto: UpdateTaskDto) {
-    const task = await this.assertTaskOwner(userId, taskId);
+  async update(userId: string, paymentId: string, dto: UpdatePaymentDto) {
+    const payment = await this.assertPaymentOwner(userId, paymentId);
 
-    let completedAt: Date | null | undefined = undefined;
-    if (dto.status === TaskStatus.COMPLETED && !task.completedAt) {
-      completedAt = new Date();
-    } else if (dto.status && dto.status !== TaskStatus.COMPLETED && task.completedAt) {
-      completedAt = null; // reopen — clear completedAt
+    const toDate = (s?: string) => (s ? new Date(s) : undefined);
+
+    // Business rule: PAID status sets paidDate = now() unless explicit date supplied
+    let paidDate: Date | null | undefined = undefined;
+    if (dto.status === PaymentStatus.PAID && !payment.paidDate) {
+      paidDate = dto.paidDate ? new Date(dto.paidDate) : new Date();
     }
 
-    return this.jobTasksRepository.update(taskId, {
-      title: dto.title,
-      description: dto.description,
+    return this.paymentsRepository.update(paymentId, {
+      amount: dto.amount,
+      currency: dto.currency,
       status: dto.status,
-      order: dto.order,
-      dueDate: dto.dueDate !== undefined ? new Date(dto.dueDate) : undefined,
-      completedAt,
+      expectedDate: dto.expectedDate !== undefined ? toDate(dto.expectedDate) : undefined,
+      paidDate: paidDate ?? (dto.paidDate !== undefined ? toDate(dto.paidDate) : undefined),
+      paymentMethod: dto.paymentMethod,
+      note: dto.note,
     });
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // REMOVE  — soft delete
+  // REMOVE — soft delete
   // ─────────────────────────────────────────────────────────────────
-  async remove(userId: string, taskId: string) {
-    await this.assertTaskOwner(userId, taskId);
-    await this.jobTasksRepository.softDelete(taskId);
-    return { message: 'Task deleted' };
+  async remove(userId: string, paymentId: string) {
+    await this.assertPaymentOwner(userId, paymentId);
+    await this.paymentsRepository.softDelete(paymentId);
+    return { message: 'Payment deleted' };
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // GET TODAY'S & OVERDUE TASKS for user
+  // GET MONTHLY STATS for user
   // ─────────────────────────────────────────────────────────────────
-  async getTodayTasks(userId: string) {
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
+  async getMonthlyStats(userId: string) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    return this.jobTasksRepository.getTodayTasks(userId, endOfToday);
+    const stats = await this.paymentsRepository.getMonthlyStats(
+      userId,
+      startOfMonth,
+      endOfMonth,
+    );
+
+    return {
+      monthRevenue: Number(stats.monthRevenue) || 0,
+      pendingRevenue: Number(stats.pendingRevenue) || 0,
+    };
   }
 }

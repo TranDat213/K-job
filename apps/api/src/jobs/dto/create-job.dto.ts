@@ -64,4 +64,19 @@ export class CreateJobDto {
   @IsOptional()
   @IsDateString()
   paymentExpectedDate?: string;
+
+  @IsOptional()
+  paymentAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  initialNote?: string;
+
+  @IsOptional()
+  attachments?: {
+    fileName: string;
+    fileUrl: string;
+    fileType?: string;
+    fileSize?: number;
+  }[];
 }

@@ -21,6 +21,13 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class JobTasksController {
   constructor(private readonly jobTasksService: JobTasksService) {}
 
+  // GET /api/tasks/today
+  @Get('tasks/today')
+  async getTodayTasks(@CurrentUser() user: { id: string }) {
+    const result = await this.jobTasksService.getTodayTasks(user.id);
+    return { data: result, message: 'Success' };
+  }
+
   // GET /api/jobs/:jobId/tasks
   @Get('jobs/:jobId/tasks')
   async findAll(

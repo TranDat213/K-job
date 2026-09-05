@@ -28,6 +28,13 @@ export class JobsService {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // GET STATS
+  // ─────────────────────────────────────────────────────────────────
+  async getStats(userId: string) {
+    return this.jobsRepository.getStats(userId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // FIND ONE  — ownership check
   // ─────────────────────────────────────────────────────────────────
   async findOne(userId: string, id: string) {
@@ -73,6 +80,13 @@ export class JobsService {
       },
       dto.templateId,
       postDate,
+      {
+        userId,
+        initialNote: dto.initialNote,
+        paymentAmount: dto.paymentAmount,
+        paymentExpectedDate: toDate(dto.paymentExpectedDate),
+        attachments: dto.attachments,
+      },
     );
 
     return this.findOne(userId, job.id);
@@ -110,4 +124,43 @@ export class JobsService {
     await this.jobsRepository.softDelete(id);
     return { message: 'Job deleted' };
   }
+
+  // ─────────────────────────────────────────────────────────────────
+  // NOTES
+  // ─────────────────────────────────────────────────────────────────
+  async addNote(userId: string, jobId: string, content: string) {
+    await this.findOne(userId, jobId);
+    return this.jobsRepository.addNote(jobId, userId, content);
+  }
+
+  async removeNote(userId: string, noteId: string) {
+    const note = await this.jobsRepository.findNoteById(noteId);
+    if (!note) throw new NotFoundException('Note not found');
+    if (note.job.userId !== userId && note.userId !== userId) {
+      throw new ForbiddenException('Access denied');
+    }
+    await this.jobsRepository.softDeleteNote(noteId);
+    return { message: 'Note deleted' };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // ATTACHMENTS
+  // ─────────────────────────────────────────────────────────────────
+  async addAttachment(
+    userId: string,
+    jobId: string,
+    data: { fileName: string; fileUrl: string; fileType?: string; fileSize?: number },
+  ) {
+    await this.findOne(userId, jobId);
+    return this.jobsRepository.addAttachment(jobId, data);
+  }
+
+  async removeAttachment(userId: string, attachmentId: string) {
+    const att = await this.jobsRepository.findAttachmentById(attachmentId);
+    if (!att) throw new NotFoundException('Attachment not found');
+    if (att.job.userId !== userId) throw new ForbiddenException('Access denied');
+    await this.jobsRepository.softDeleteAttachment(attachmentId);
+    return { message: 'Attachment deleted' };
+  }
 }
+

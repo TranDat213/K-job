@@ -14,6 +14,8 @@ import {
 import { JobsService, JobsQuery } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { CreateNoteDto } from './dto/create-note.dto';
+import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JobStatus } from '@prisma/client';
@@ -41,6 +43,13 @@ export class JobsController {
       search,
     };
     return this.jobsService.findAll(user.id, query);
+  }
+
+  // GET /api/jobs/stats
+  @Get('stats')
+  async getStats(@CurrentUser() user: { id: string }) {
+    const stats = await this.jobsService.getStats(user.id);
+    return { data: stats, message: 'Success' };
   }
 
   // GET /api/jobs/:id
@@ -75,4 +84,49 @@ export class JobsController {
   async remove(@CurrentUser() user: { id: string }, @Param('id') id: string) {
     return this.jobsService.remove(user.id, id);
   }
+
+  // POST /api/jobs/:id/notes
+  @Post(':id/notes')
+  @HttpCode(HttpStatus.CREATED)
+  async addNote(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: CreateNoteDto,
+  ) {
+    const note = await this.jobsService.addNote(user.id, id, dto.content);
+    return { data: note, message: 'Note added' };
+  }
+
+  // DELETE /api/jobs/:id/notes/:noteId
+  @Delete(':id/notes/:noteId')
+  @HttpCode(HttpStatus.OK)
+  async removeNote(
+    @CurrentUser() user: { id: string },
+    @Param('noteId') noteId: string,
+  ) {
+    return this.jobsService.removeNote(user.id, noteId);
+  }
+
+  // POST /api/jobs/:id/attachments
+  @Post(':id/attachments')
+  @HttpCode(HttpStatus.CREATED)
+  async addAttachment(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: CreateAttachmentDto,
+  ) {
+    const att = await this.jobsService.addAttachment(user.id, id, dto);
+    return { data: att, message: 'Attachment added' };
+  }
+
+  // DELETE /api/jobs/:id/attachments/:attachmentId
+  @Delete(':id/attachments/:attachmentId')
+  @HttpCode(HttpStatus.OK)
+  async removeAttachment(
+    @CurrentUser() user: { id: string },
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.jobsService.removeAttachment(user.id, attachmentId);
+  }
 }
+
