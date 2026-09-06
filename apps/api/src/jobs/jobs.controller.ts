@@ -10,7 +10,13 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Res,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JobsService, JobsQuery } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
@@ -50,6 +56,68 @@ export class JobsController {
   async getStats(@CurrentUser() user: { id: string }) {
     const stats = await this.jobsService.getStats(user.id);
     return { data: stats, message: 'Success' };
+  }
+
+  // GET /api/jobs/export/excel
+  @Get('export/excel')
+  async exportExcel(
+    @CurrentUser() user: { id: string },
+    @Res() res: Response,
+    @Query('status') status?: JobStatus,
+    @Query('brandId') brandId?: string,
+    @Query('search') search?: string,
+  ) {
+    const workbook = await this.jobsService.exportToExcel(user.id, {
+      status,
+      brandId,
+      search,
+    });
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `koc-jobs-${timestamp}.xlsx`;
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+  }
+
+  // GET /api/jobs/template/excel
+  @Get('template/excel')
+  async getTemplateExcel(@Res() res: Response) {
+    const workbook = await this.jobsService.getTemplateExcel();
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="mau-nhap-cong-viec.xlsx"');
+
+    await workbook.xlsx.write(res);
+    res.end();
+  }
+
+  // POST /api/jobs/import/excel
+  @Post('import/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  @HttpCode(HttpStatus.OK)
+  async importExcel(
+    @CurrentUser() user: { id: string },
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn file Excel (.xlsx) để tải lên');
+    }
+
+    const result = await this.jobsService.importFromExcel(user.id, file.buffer);
+    return {
+      data: result,
+      message: `Đã nhập thành công ${result.importedCount} công việc vào hệ thống`,
+    };
   }
 
   // GET /api/jobs/:id

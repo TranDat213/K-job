@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: '/settings', label: 'Cài đặt', icon: '⚙️' },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ onItemClick }: { onItemClick?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -23,6 +23,7 @@ export function SidebarNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onItemClick}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
               isActive
                 ? 'bg-primary/10 text-primary font-semibold'

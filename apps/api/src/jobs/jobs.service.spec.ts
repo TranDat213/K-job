@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobsService } from './jobs.service';
 import { JobsRepository } from './jobs.repository';
+import { JobsExcelService } from './jobs.excel.service';
 
 const mockJobsRepository = {
   findAll: jest.fn(),
@@ -13,6 +14,12 @@ const mockJobsRepository = {
   findTemplateForUser: jest.fn(),
 };
 
+const mockJobsExcelService = {
+  generateExportWorkbook: jest.fn(),
+  generateTemplateWorkbook: jest.fn(),
+  parseAndValidateImport: jest.fn(),
+};
+
 describe('JobsService', () => {
   let service: JobsService;
 
@@ -21,6 +28,7 @@ describe('JobsService', () => {
       providers: [
         JobsService,
         { provide: JobsRepository, useValue: mockJobsRepository },
+        { provide: JobsExcelService, useValue: mockJobsExcelService },
       ],
     }).compile();
 

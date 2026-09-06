@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JobsRepository } from './jobs.repository';
+import { JobsExcelService } from './jobs.excel.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { JobStatus } from '@prisma/client';
@@ -18,7 +20,10 @@ export interface JobsQuery {
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly jobsRepository: JobsRepository) {}
+  constructor(
+    private readonly jobsRepository: JobsRepository,
+    private readonly jobsExcelService: JobsExcelService,
+  ) {}
 
   // ─────────────────────────────────────────────────────────────────
   // FIND ALL  — paginated, filterable
@@ -173,5 +178,34 @@ export class JobsService {
     await this.jobsRepository.softDeleteAttachment(attachmentId);
     return { message: 'Attachment deleted' };
   }
+
+  // ─────────────────────────────────────────────────────────────────
+  // EXCEL IMPORT / EXPORT
+  // ─────────────────────────────────────────────────────────────────
+  async exportToExcel(userId: string, query: Omit<JobsQuery, 'page' | 'limit'>) {
+    const jobs = await this.jobsRepository.findAllForExport(userId, query);
+    return this.jobsExcelService.generateExportWorkbook(jobs);
+  }
+
+  async getTemplateExcel() {
+    return this.jobsExcelService.generateTemplateWorkbook();
+  }
+
+  async importFromExcel(userId: string, fileBuffer: Buffer) {
+    const { validRows, errors } = await this.jobsExcelService.parseAndValidateImport(fileBuffer);
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Dữ liệu file Excel có lỗi, vui lòng kiểm tra lại.',
+        errors,
+      });
+    }
+
+    const result = await this.jobsRepository.importJobsBatch(userId, validRows);
+    return {
+      importedCount: result.count,
+    };
+  }
 }
+
 

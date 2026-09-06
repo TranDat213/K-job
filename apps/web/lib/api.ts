@@ -40,6 +40,62 @@ export async function fetchApi<T = any>(
   return data;
 }
 
+export async function downloadFile(endpoint: string, defaultFilename: string = 'download.xlsx') {
+  const url = `${API_BASE_URL}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Không thể tải file';
+    try {
+      const errJson = await response.json();
+      errorMsg = errJson.message || errJson.error || errorMsg;
+    } catch {}
+    throw new Error(errorMsg);
+  }
+
+  let filename = defaultFilename;
+  const disposition = response.headers.get('Content-Disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+
+  const blob = await response.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+export async function uploadFile<T = any>(endpoint: string, file: File): Promise<ApiResponse<T>> {
+  const url = `${API_BASE_URL}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const error: any = new Error(data.message || data.error || 'Tải file thất bại');
+    error.errors = data.errors;
+    error.response = data;
+    throw error;
+  }
+
+  return data;
+}
+
 export const authApi = {
   register: (body: { email: string; password: string; name: string; phone?: string }) =>
     fetchApi('/auth/register', {
@@ -255,6 +311,23 @@ export const jobsApi = {
     }),
   removeAttachment: (jobId: string, attachmentId: string) =>
     fetchApi(`/jobs/${jobId}/attachments/${attachmentId}`, { method: 'DELETE' }),
+  exportExcel: (params: Omit<JobsListParams, 'page' | 'limit'> = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.brandId) qs.set('brandId', params.brandId);
+    if (params.search) qs.set('search', params.search);
+    const query = qs.toString();
+    return downloadFile(
+      `/jobs/export/excel${query ? `?${query}` : ''}`,
+      `koc-jobs-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+  },
+  downloadTemplate: () => {
+    return downloadFile('/jobs/template/excel', 'mau-nhap-cong-viec.xlsx');
+  },
+  importExcel: (file: File) => {
+    return uploadFile<{ importedCount: number }>('/jobs/import/excel', file);
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────

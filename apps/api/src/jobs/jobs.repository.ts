@@ -322,5 +322,102 @@ export class JobsRepository {
 
     return { total, inProgress, completed };
   }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Find all jobs for Export (with query filter, no pagination limit)
+  // ─────────────────────────────────────────────────────────────────
+  async findAllForExport(userId: string, query: Omit<JobsQuery, 'page' | 'limit'>) {
+    const { status, brandId, search } = query;
+
+    const where: Prisma.JobWhereInput = {
+      userId,
+      deletedAt: null,
+      ...(status && { status }),
+      ...(brandId && { brandId }),
+      ...(search && { name: { contains: search, mode: 'insensitive' } }),
+    };
+
+    return this.prisma.job.findMany({
+      where,
+      include: {
+        brand: { select: { id: true, name: true } },
+        payments: { where: { deletedAt: null }, select: { amount: true, currency: true, status: true } },
+        _count: { select: { tasks: { where: { deletedAt: null } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Import Jobs in Batch via Transaction
+  // ─────────────────────────────────────────────────────────────────
+  async importJobsBatch(userId: string, rows: Array<{
+    name: string;
+    brandName: string;
+    jobType: any;
+    status: any;
+    quantity?: number;
+    requirement?: string;
+    brief?: string;
+    receivedDate?: Date;
+    demoDate?: Date;
+    postDate?: Date;
+    paymentExpectedDate?: Date;
+  }>): Promise<{ count: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Get unique brand names (trimmed)
+      const brandNames = Array.from(new Set(rows.map((r) => r.brandName.trim())));
+
+      // 2. Lookup existing brands of this user
+      const existingBrands = await tx.brand.findMany({
+        where: {
+          userId,
+          deletedAt: null,
+          name: { in: brandNames, mode: 'insensitive' },
+        },
+      });
+
+      const brandMap = new Map<string, string>(); // lowerName -> brandId
+      existingBrands.forEach((b) => brandMap.set(b.name.toLowerCase().trim(), b.id));
+
+      // 3. Create missing brands
+      for (const bName of brandNames) {
+        const lower = bName.toLowerCase();
+        if (!brandMap.has(lower)) {
+          const newBrand = await tx.brand.create({
+            data: {
+              userId,
+              name: bName,
+            },
+          });
+          brandMap.set(lower, newBrand.id);
+        }
+      }
+
+      // 4. Create all jobs
+      for (const row of rows) {
+        const brandId = brandMap.get(row.brandName.toLowerCase().trim())!;
+        await tx.job.create({
+          data: {
+            userId,
+            brandId,
+            name: row.name.trim(),
+            jobType: row.jobType,
+            status: row.status,
+            quantity: row.quantity,
+            requirement: row.requirement,
+            brief: row.brief,
+            receivedDate: row.receivedDate,
+            demoDate: row.demoDate,
+            postDate: row.postDate,
+            paymentExpectedDate: row.paymentExpectedDate,
+          },
+        });
+      }
+
+      return { count: rows.length };
+    });
+  }
 }
+
 

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { jobsApi, Job, JobsListParams } from '../../lib/api';
+import { ImportJobDialog } from './import-job-dialog';
+import { Download, Upload, Plus } from 'lucide-react';
 
 import { JOB_STATUS_STYLES, JOB_FILTER_STATUSES } from '../../constants';
 
@@ -21,6 +23,8 @@ export default function JobsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 20 });
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const fetchJobs = useCallback(async (params: JobsListParams = {}) => {
     setLoading(true);
@@ -49,28 +53,72 @@ export default function JobsPage() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await jobsApi.exportExcel({
+        status: status || undefined,
+        search: search || undefined,
+      });
+    } catch (err: any) {
+      alert(err.message || 'Lỗi khi xuất file Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">Công việc</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Quản lý tất cả các jobs KOC của bạn
             {!loading && meta.total > 0 && (
-              <span className="ml-1 text-xs bg-muted px-2 py-0.5 rounded-full">
+              <span className="ml-1.5 text-xs bg-muted text-foreground px-2 py-0.5 rounded-full font-medium">
                 {meta.total}
               </span>
             )}
           </p>
         </div>
-        <Link
-          href="/jobs/new"
-          className="px-4 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-xl shadow-sm shadow-primary/20 hover:bg-primary-hover active:bg-primary-active transition-colors"
-        >
-          + Tạo job mới
-        </Link>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-card border border-card-border hover:bg-muted text-foreground text-xs font-semibold rounded-xl transition-colors shadow-xs disabled:opacity-50"
+            title="Xuất file Excel theo bộ lọc hiện tại"
+          >
+            <Download className="w-3.5 h-3.5 text-primary" />
+            {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+          </button>
+
+          <button
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-card border border-card-border hover:bg-muted text-foreground text-xs font-semibold rounded-xl transition-colors shadow-xs"
+            title="Nhập danh sách công việc từ file Excel"
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            Nhập Excel
+          </button>
+
+          <Link
+            href="/jobs/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-xs font-semibold rounded-xl shadow-sm shadow-primary/20 hover:bg-primary-hover active:bg-primary-active transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Tạo job mới
+          </Link>
+        </div>
       </div>
+
+      <ImportJobDialog
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => fetchJobs({ status: status || undefined, search: search || undefined })}
+      />
 
       {/* Filters */}
       <div className="bg-card border border-card-border rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
