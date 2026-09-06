@@ -2,7 +2,6 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
-  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -34,23 +33,14 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
-  // ─────────────────────────────────────────────────────────────────
-  // REGISTER
-  // ─────────────────────────────────────────────────────────────────
-
-  async register(dto: RegisterDto): Promise<{ user: SafeUser; token: string }> {
-    // Check if email already taken (among active users)
+  async register(dto: RegisterDto): Promise<{ message: string, token: string }> {
     const existing = await this.authRepository.findUserByEmail(dto.email);
     if (existing) {
-      throw new ConflictException('An account with this email already exists');
+      throw new ConflictException('Email này đã tồn tại');
     }
-
-    // Hash password
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-
-    // Create user
     const user = await this.authRepository.createUser({
       email: dto.email,
       passwordHash,
@@ -63,25 +53,17 @@ export class AuthService {
 
     this.logger.log(`New user registered: ${user.email}`);
 
-    return { user: safeUser, token };
+    return { message: "Đăng ký tài khoản thành công", token };
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // LOGIN
-  // ─────────────────────────────────────────────────────────────────
-
-  async login(dto: LoginDto): Promise<{ user: SafeUser; token: string }> {
-    // Find active user
+  async login(dto: LoginDto): Promise<{ message: string; token: string }> {
     const user = await this.authRepository.findUserByEmail(dto.email);
     if (!user) {
-      // Use generic message to prevent email enumeration
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
     }
-
-    // Compare password
     const isMatch = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isMatch) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
     }
 
     const safeUser = this.stripSensitiveFields(user);
@@ -89,12 +71,8 @@ export class AuthService {
 
     this.logger.log(`User logged in: ${user.email}`);
 
-    return { user: safeUser, token };
+    return { message: "Đăng nhập tài khoản thành công", token };
   }
-
-  // ─────────────────────────────────────────────────────────────────
-  // JWT HELPERS
-  // ─────────────────────────────────────────────────────────────────
 
   private signToken(user: SafeUser): string {
     const payload: JwtPayload = {
@@ -105,16 +83,13 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  /**
-   * Build cookie options — httpOnly prevents JS access (XSS protection).
-   */
   getCookieOptions(): Record<string, unknown> {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
     return {
       httpOnly: true,
-      secure: isProduction,           // HTTPS only in production
+      secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     };
   }
@@ -122,10 +97,6 @@ export class AuthService {
   getCookieName(): string {
     return COOKIE_NAME;
   }
-
-  // ─────────────────────────────────────────────────────────────────
-  // PRIVATE
-  // ─────────────────────────────────────────────────────────────────
 
   private stripSensitiveFields(user: {
     id: string;
@@ -138,7 +109,6 @@ export class AuthService {
     passwordHash: string;
     deletedAt: Date | null;
   }): SafeUser {
-    // Explicitly omit passwordHash and deletedAt — never sent to client
     return {
       id: user.id,
       email: user.email,

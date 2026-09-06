@@ -18,53 +18,33 @@ import { SafeUser } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
-  // ─────────────────────────────────────────────────────────────────
-  // POST /api/auth/register
-  // ─────────────────────────────────────────────────────────────────
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    const { user, token } = await this.authService.register(dto);
-
-    // Set JWT in httpOnly cookie
-    res.cookie(
-      this.authService.getCookieName(),
-      token,
-      this.authService.getCookieOptions(),
-    );
-
+    const { message, token } = await this.authService.register(dto);
     return {
-      data: { user },
-      message: 'Registration successful',
+      message,
+      data: { accessToken: token },
     };
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // POST /api/auth/login
-  // ─────────────────────────────────────────────────────────────────
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const { user, token } = await this.authService.login(dto);
-
-    // Set JWT in httpOnly cookie
+    const { message, token } = await this.authService.login(dto);
     res.cookie(
       this.authService.getCookieName(),
       token,
       this.authService.getCookieOptions(),
     );
-
     return {
-      data: { user },
-      message: 'Login successful',
+      message,
+      data: { accessToken: token },
     };
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // POST /api/auth/logout
-  // ─────────────────────────────────────────────────────────────────
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
@@ -77,19 +57,16 @@ export class AuthController {
 
     return {
       data: null,
-      message: 'Logged out successfully',
+      message: 'Đăng xuất thành công',
     };
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // GET /api/auth/me
-  // ─────────────────────────────────────────────────────────────────
   @Get('me')
   @UseGuards(JwtAuthGuard)
   getMe(@CurrentUser() user: SafeUser) {
     return {
+      message: 'Lấy thông tin người dùng thành công',
       data: { user },
-      message: 'Authenticated user',
     };
   }
 }

@@ -14,9 +14,6 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Khác',
 };
 
-// ─────────────────────────────────────────────────────────────────
-// Template Dialog (create / edit)
-// ─────────────────────────────────────────────────────────────────
 function TemplateDialog({
   editing,
   onClose,
@@ -177,8 +174,8 @@ export default function TemplatesPage() {
   const filteredTemplates = activeTab === 'ALL'
     ? templates
     : activeTab === 'SYSTEM'
-    ? systemTemplates
-    : userTemplates;
+      ? systemTemplates
+      : userTemplates;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -200,25 +197,22 @@ export default function TemplatesPage() {
       <div className="flex items-center gap-2 border-b border-card-border pb-2 text-sm font-medium">
         <button
           onClick={() => setActiveTab('ALL')}
-          className={`px-3 py-1.5 rounded-lg transition-colors ${
-            activeTab === 'ALL' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'ALL' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           Tất cả ({templates.length})
         </button>
         <button
           onClick={() => setActiveTab('SYSTEM')}
-          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-            activeTab === 'SYSTEM' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${activeTab === 'SYSTEM' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <span>🏢</span> Mẫu hệ thống ({systemTemplates.length})
         </button>
         <button
           onClick={() => setActiveTab('USER')}
-          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-            activeTab === 'USER' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${activeTab === 'USER' ? 'bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
           <span>👤</span> Mẫu của tôi ({userTemplates.length})
         </button>
@@ -269,9 +263,8 @@ export default function TemplatesPage() {
             return (
               <div
                 key={t.id}
-                className={`bg-card border rounded-2xl p-5 flex flex-col gap-3 transition-all hover:shadow-md ${
-                  isSystem ? 'border-primary/20 hover:border-primary/50' : 'border-card-border hover:border-primary/30'
-                }`}
+                className={`bg-card border rounded-2xl p-5 flex flex-col gap-3 transition-all hover:shadow-md ${isSystem ? 'border-primary/20 hover:border-primary/50' : 'border-card-border hover:border-primary/30'
+                  }`}
               >
                 {/* Header card */}
                 <div className="flex items-start justify-between gap-2">
@@ -281,11 +274,10 @@ export default function TemplatesPage() {
                     </div>
                     <div>
                       <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                          isSystem
+                        className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isSystem
                             ? 'bg-soft-sage/40 text-soft-sage-foreground border border-soft-sage/60'
                             : 'bg-muted text-muted-foreground border border-card-border'
-                        }`}
+                          }`}
                       >
                         {isSystem ? 'Hệ thống' : 'Mẫu của tôi'}
                       </span>
