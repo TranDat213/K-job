@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { jobsApi, Job } from '../../lib/api';
+import { JOB_STATUS_STYLES } from '../../constants';
 
 // ─────────────────────────────────────────────────────────────────
 // Payments page — aggregates jobs with payment-related statuses
@@ -13,16 +14,11 @@ const PAYMENT_FILTER = [
   { value: '', label: 'Tất cả' },
   { value: 'WAITING_PAYMENT', label: 'Chờ thanh toán' },
   { value: 'PAID', label: 'Đã thanh toán' },
-  { value: 'POSTED', label: 'Đã đăng' },
+  { value: 'POSTED', label: 'Đã đăng bài' },
   { value: 'COMPLETED', label: 'Hoàn thành' },
 ];
 
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  WAITING_PAYMENT: { label: 'Chờ thanh toán', className: 'bg-warning/50 text-warning-foreground' },
-  PAID:            { label: 'Đã thanh toán',  className: 'bg-success text-success-foreground' },
-  POSTED:          { label: 'Đã đăng',        className: 'bg-soft-sage/60 text-soft-sage-foreground' },
-  COMPLETED:       { label: 'Hoàn thành',     className: 'bg-success text-success-foreground' },
-};
+const STATUS_STYLES = JOB_STATUS_STYLES;
 
 function fmt(d: string | null) {
   if (!d) return '—';

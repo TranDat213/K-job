@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -8,6 +8,7 @@ import {
   JobTemplateDetail,
   TemplateTask,
   CreateTemplateTaskPayload,
+  CreateTemplatePayload,
 } from '../../../lib/api';
 
 const JOB_TYPE_LABELS: Record<string, string> = {
@@ -18,6 +19,137 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   AFFILIATE: 'Affiliate',
   OTHER: 'Khác',
 };
+
+// ─────────────────────────────────────────────────────────────────
+// Edit Template Dialog
+// ─────────────────────────────────────────────────────────────────
+function EditTemplateDialog({
+  template,
+  onClose,
+  onSaved,
+}: {
+  template: JobTemplateDetail;
+  onClose: () => void;
+  onSaved: (updated: any) => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [form, setForm] = useState<CreateTemplatePayload>({
+    name: template.name,
+    jobType: template.jobType ?? undefined,
+    description: template.description || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    dialogRef.current?.showModal();
+    return () => dialogRef.current?.close();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    setErr('');
+    try {
+      const res = await templatesApi.update(template.id, {
+        name: form.name.trim(),
+        jobType: form.jobType || undefined,
+        description: form.description?.trim() || undefined,
+      });
+      onSaved(res.data);
+      onClose();
+    } catch (ex: any) {
+      setErr(ex.message || 'Lỗi cập nhật mẫu công việc');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
+      className="backdrop:bg-black/50 backdrop:backdrop-blur-sm bg-card border border-card-border rounded-2xl p-0 w-full max-w-md shadow-2xl"
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-foreground">✏️ Chỉnh sửa mẫu việc</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Tên mẫu việc *
+            </label>
+            <input
+              type="text"
+              required
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className="mt-1 w-full px-3 py-2.5 bg-input border border-input-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Loại công việc
+            </label>
+            <select
+              value={form.jobType ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, jobType: e.target.value }))}
+              className="mt-1 w-full px-3 py-2.5 bg-input border border-input-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            >
+              {Object.entries(JOB_TYPE_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Mô tả mẫu
+            </label>
+            <textarea
+              rows={3}
+              value={form.description ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              className="mt-1 w-full px-3 py-2.5 bg-input border border-input-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none"
+            />
+          </div>
+        </div>
+
+        {err && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{err}</p>}
+
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-muted text-foreground text-sm font-medium rounded-xl hover:bg-card-border transition-colors"
+          >
+            Huỷ
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-xl hover:bg-primary-hover transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Đang lưu...' : 'Lưu'}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────
 // Inline editable task row
@@ -124,11 +256,25 @@ export default function TemplateDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copying, setCopying] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
 
   // Quick add
   const [newTitle, setNewTitle] = useState('');
   const [newDays, setNewDays] = useState(0);
   const [adding, setAdding] = useState(false);
+
+  const handleDeleteTemplate = async () => {
+    if (!confirm('Bạn có chắc muốn xoá mẫu việc này? Thao tác không thể hoàn tác.')) return;
+    setDeletingTemplate(true);
+    try {
+      await templatesApi.remove(id);
+      router.push('/templates');
+    } catch (e: any) {
+      alert(e.message || 'Xoá mẫu việc thất bại');
+      setDeletingTemplate(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -243,6 +389,26 @@ export default function TemplateDetailPage() {
           >
             🚀 Dùng tạo Job
           </Link>
+          {!isReadOnly && (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditDialogOpen(true)}
+                className="px-3 py-2 bg-muted hover:bg-card-border text-foreground text-xs font-semibold rounded-xl transition-colors"
+              >
+                ✏️ Sửa mẫu
+              </button>
+              <button
+                type="button"
+                disabled={deletingTemplate}
+                onClick={handleDeleteTemplate}
+                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-colors text-xs disabled:opacity-50"
+                title="Xoá mẫu việc"
+              >
+                🗑️
+              </button>
+            </>
+          )}
           {isReadOnly && (
             <button
               onClick={handleCopy}
@@ -341,6 +507,16 @@ export default function TemplateDetailPage() {
           </p>
         )}
       </section>
+
+      {editDialogOpen && (
+        <EditTemplateDialog
+          template={template}
+          onClose={() => setEditDialogOpen(false)}
+          onSaved={(updated) => {
+            setTemplate((prev) => (prev ? { ...prev, ...updated } : prev));
+          }}
+        />
+      )}
     </div>
   );
 }

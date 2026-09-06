@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Job, Prisma, TaskStatus, JobStatus } from '@prisma/client';
+import { Job, Prisma, TaskStatus, JobStatus, PaymentStatus } from '@prisma/client';
 import { JobsQuery } from './jobs.service';
 
 @Injectable()
@@ -106,12 +106,41 @@ export class JobsRepository {
         fileType?: string;
         fileSize?: number;
       }>;
+      tasks?: Array<{
+        title: string;
+        description?: string;
+        order?: number;
+        daysBeforePost?: number;
+        dueDate?: string;
+      }>;
     },
   ): Promise<Job> {
     return this.prisma.$transaction(async (tx) => {
       const job = await tx.job.create({ data: jobData });
 
-      if (templateId && postDate) {
+      // 1. Tạo Job Tasks: Ưu tiên danh sách tasks do người dùng tinh chỉnh/review
+      if (extra?.tasks && extra.tasks.length > 0) {
+        await tx.jobTask.createMany({
+          data: extra.tasks.map((t, idx) => {
+            let dueDate: Date | null = null;
+            if (t.dueDate) {
+              dueDate = new Date(t.dueDate);
+            } else if (postDate && t.daysBeforePost !== undefined) {
+              dueDate = new Date(postDate);
+              dueDate.setDate(dueDate.getDate() - t.daysBeforePost);
+            }
+            return {
+              jobId: job.id,
+              title: t.title,
+              description: t.description ?? null,
+              order: t.order !== undefined ? t.order : idx,
+              status: TaskStatus.TODO,
+              dueDate,
+            };
+          }),
+        });
+      } else if (templateId) {
+        // Fallback: Tự động copy từ Template Tasks nếu người dùng không truyền tasks tùy biến
         const templateTasks = await tx.templateTask.findMany({
           where: { templateId, deletedAt: null },
           orderBy: { order: 'asc' },
@@ -119,14 +148,17 @@ export class JobsRepository {
 
         if (templateTasks.length > 0) {
           await tx.jobTask.createMany({
-            data: templateTasks.map((tt) => {
-              const dueDate = new Date(postDate);
-              dueDate.setDate(dueDate.getDate() - tt.daysBeforePost);
+            data: templateTasks.map((tt, idx) => {
+              let dueDate: Date | null = null;
+              if (postDate) {
+                dueDate = new Date(postDate);
+                dueDate.setDate(dueDate.getDate() - tt.daysBeforePost);
+              }
               return {
                 jobId: job.id,
                 title: tt.title,
                 description: tt.description,
-                order: tt.order,
+                order: tt.order ?? idx,
                 status: TaskStatus.TODO,
                 dueDate,
               };
@@ -168,6 +200,22 @@ export class JobsRepository {
       }
 
       return job;
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Sync expected payment date to pending payments of a job
+  // ─────────────────────────────────────────────────────────────────
+  async syncPendingPaymentsExpectedDate(jobId: string, expectedDate: Date | null | undefined) {
+    return this.prisma.payment.updateMany({
+      where: {
+        jobId,
+        deletedAt: null,
+        status: { in: [PaymentStatus.PENDING, PaymentStatus.REQUESTED] },
+      },
+      data: {
+        expectedDate: expectedDate ?? null,
+      },
     });
   }
 

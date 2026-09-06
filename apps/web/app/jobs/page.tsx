@@ -4,34 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { jobsApi, Job, JobsListParams } from '../../lib/api';
 
-// ─────────────────────────────────────────────────────────────────
-// Status config
-// ─────────────────────────────────────────────────────────────────
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  DRAFT:           { label: 'Nháp',            className: 'bg-muted text-muted-foreground' },
-  NEW:             { label: 'Mới',             className: 'bg-info/30 text-info-foreground' },
-  WAITING_PRODUCT: { label: 'Chờ sản phẩm',   className: 'bg-warning/50 text-warning-foreground' },
-  PRODUCT_RECEIVED:{ label: 'Đã nhận SP',      className: 'bg-secondary/30 text-secondary-foreground' },
-  CREATING:        { label: 'Đang tạo ND',     className: 'bg-pale-pink/50 text-pale-pink-foreground' },
-  DEMO:            { label: 'Demo',            className: 'bg-pale-pink/50 text-pale-pink-foreground' },
-  REVISION:        { label: 'Chỉnh sửa',       className: 'bg-warning/50 text-warning-foreground' },
-  READY_TO_POST:   { label: 'Sẵn sàng đăng',  className: 'bg-soft-sage/60 text-soft-sage-foreground' },
-  POSTED:          { label: 'Đã đăng',         className: 'bg-soft-sage/60 text-soft-sage-foreground' },
-  WAITING_PAYMENT: { label: 'Chờ thanh toán', className: 'bg-warning/50 text-warning-foreground' },
-  PAID:            { label: 'Đã thanh toán',   className: 'bg-success text-success-foreground' },
-  COMPLETED:       { label: 'Hoàn thành',      className: 'bg-success text-success-foreground' },
-  CANCELLED:       { label: 'Huỷ',            className: 'bg-destructive/20 text-destructive-foreground' },
-};
+import { JOB_STATUS_STYLES, JOB_FILTER_STATUSES } from '../../constants';
 
-const FILTER_STATUSES = [
-  { value: '', label: 'Tất cả' },
-  { value: 'NEW', label: 'Mới' },
-  { value: 'CREATING', label: 'Đang làm' },
-  { value: 'DEMO', label: 'Demo' },
-  { value: 'POSTED', label: 'Đã đăng' },
-  { value: 'WAITING_PAYMENT', label: 'Chờ TT' },
-  { value: 'COMPLETED', label: 'Hoàn thành' },
-];
+const STATUS_STYLES = JOB_STATUS_STYLES;
+const FILTER_STATUSES = JOB_FILTER_STATUSES;
 
 function fmt(dateStr: string | null) {
   if (!dateStr) return '—';

@@ -11,22 +11,9 @@ import {
   TodayTasksResponse,
   PaymentStats,
 } from '../../lib/api';
+import { JOB_STATUS_STYLES } from '../../constants';
 
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  DRAFT:            { label: 'Nháp',            className: 'bg-muted text-muted-foreground' },
-  NEW:              { label: 'Mới',             className: 'bg-info/30 text-info-foreground' },
-  WAITING_PRODUCT:  { label: 'Chờ sản phẩm',   className: 'bg-warning/50 text-warning-foreground' },
-  PRODUCT_RECEIVED: { label: 'Đã nhận SP',      className: 'bg-secondary/30 text-secondary-foreground' },
-  CREATING:         { label: 'Đang tạo ND',     className: 'bg-pale-pink/50 text-pale-pink-foreground' },
-  DEMO:             { label: 'Demo',            className: 'bg-pale-pink/50 text-pale-pink-foreground' },
-  REVISION:         { label: 'Chỉnh sửa',       className: 'bg-warning/50 text-warning-foreground' },
-  READY_TO_POST:    { label: 'Sẵn sàng đăng',  className: 'bg-soft-sage/60 text-soft-sage-foreground' },
-  POSTED:           { label: 'Đã đăng',         className: 'bg-soft-sage/60 text-soft-sage-foreground' },
-  WAITING_PAYMENT:  { label: 'Chờ thanh toán', className: 'bg-warning/50 text-warning-foreground' },
-  PAID:             { label: 'Đã thanh toán',   className: 'bg-success text-success-foreground' },
-  COMPLETED:        { label: 'Hoàn thành',      className: 'bg-success text-success-foreground' },
-  CANCELLED:        { label: 'Huỷ',            className: 'bg-destructive/20 text-destructive-foreground' },
-};
+const STATUS_STYLES = JOB_STATUS_STYLES;
 
 const QUICK_ACTIONS = [
   { href: '/jobs/new', label: '+ Tạo job mới', primary: true },

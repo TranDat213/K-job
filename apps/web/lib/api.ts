@@ -196,6 +196,13 @@ export type CreateJobPayload = {
     fileType?: string;
     fileSize?: number;
   }[];
+  tasks?: {
+    title: string;
+    description?: string;
+    order?: number;
+    daysBeforePost?: number;
+    dueDate?: string;
+  }[];
 };
 
 export type JobsListParams = {

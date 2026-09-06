@@ -63,6 +63,16 @@ export class PaymentsRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // Update job's payment expected date
+  // ─────────────────────────────────────────────────────────────────
+  async updateJobPaymentExpectedDate(jobId: string, paymentExpectedDate: Date | null) {
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data: { paymentExpectedDate },
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // Get monthly payment stats for a user
   // ─────────────────────────────────────────────────────────────────
   async getMonthlyStats(userId: string, startOfMonth: Date, endOfMonth: Date) {

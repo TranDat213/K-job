@@ -7,8 +7,36 @@ import {
   Min,
   IsDateString,
   MaxLength,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { JobType, JobStatus } from '@prisma/client';
+
+export class CreateJobTaskItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  daysBeforePost?: number;
+
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string;
+}
 
 export class CreateJobDto {
   @IsString()
@@ -79,4 +107,10 @@ export class CreateJobDto {
     fileType?: string;
     fileSize?: number;
   }[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateJobTaskItemDto)
+  tasks?: CreateJobTaskItemDto[];
 }

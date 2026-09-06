@@ -42,18 +42,27 @@ export class PaymentsService {
   async create(userId: string, jobId: string, dto: CreatePaymentDto) {
     await this.assertJobOwner(userId, jobId);
 
-    const toDate = (s?: string) => (s ? new Date(s) : undefined);
+    const toDate = (s?: string | null) =>
+      s ? new Date(s) : s === null || s === '' ? null : undefined;
 
-    return this.paymentsRepository.create({
+    const parsedExpectedDate = toDate(dto.expectedDate);
+
+    const payment = await this.paymentsRepository.create({
       job: { connect: { id: jobId } },
       amount: dto.amount,
       currency: dto.currency ?? 'VND',
       status: dto.status ?? PaymentStatus.PENDING,
-      expectedDate: toDate(dto.expectedDate),
+      expectedDate: parsedExpectedDate,
       paidDate: toDate(dto.paidDate),
       paymentMethod: dto.paymentMethod,
       note: dto.note,
     });
+
+    if (parsedExpectedDate !== undefined) {
+      await this.paymentsRepository.updateJobPaymentExpectedDate(jobId, parsedExpectedDate);
+    }
+
+    return payment;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -62,7 +71,8 @@ export class PaymentsService {
   async update(userId: string, paymentId: string, dto: UpdatePaymentDto) {
     const payment = await this.assertPaymentOwner(userId, paymentId);
 
-    const toDate = (s?: string) => (s ? new Date(s) : undefined);
+    const toDate = (s?: string | null) =>
+      s ? new Date(s) : s === null || s === '' ? null : undefined;
 
     // Business rule: PAID status sets paidDate = now() unless explicit date supplied
     let paidDate: Date | null | undefined = undefined;
@@ -70,15 +80,27 @@ export class PaymentsService {
       paidDate = dto.paidDate ? new Date(dto.paidDate) : new Date();
     }
 
-    return this.paymentsRepository.update(paymentId, {
+    const parsedExpectedDate =
+      dto.expectedDate !== undefined ? toDate(dto.expectedDate) : undefined;
+
+    const updatedPayment = await this.paymentsRepository.update(paymentId, {
       amount: dto.amount,
       currency: dto.currency,
       status: dto.status,
-      expectedDate: dto.expectedDate !== undefined ? toDate(dto.expectedDate) : undefined,
+      expectedDate: parsedExpectedDate,
       paidDate: paidDate ?? (dto.paidDate !== undefined ? toDate(dto.paidDate) : undefined),
       paymentMethod: dto.paymentMethod,
       note: dto.note,
     });
+
+    if (parsedExpectedDate !== undefined) {
+      await this.paymentsRepository.updateJobPaymentExpectedDate(
+        payment.jobId,
+        parsedExpectedDate,
+      );
+    }
+
+    return updatedPayment;
   }
 
   // ─────────────────────────────────────────────────────────────────

@@ -86,6 +86,7 @@ export class JobsService {
         paymentAmount: dto.paymentAmount,
         paymentExpectedDate: toDate(dto.paymentExpectedDate),
         attachments: dto.attachments,
+        tasks: dto.tasks,
       },
     );
 
@@ -98,9 +99,13 @@ export class JobsService {
   async update(userId: string, id: string, dto: UpdateJobDto) {
     await this.findOne(userId, id); // ownership check
 
-    const toDate = (s?: string) => (s ? new Date(s) : undefined);
+    const toDate = (s?: string | null) =>
+      s ? new Date(s) : s === null || s === '' ? null : undefined;
 
-    return this.jobsRepository.update(id, {
+    const parsedPaymentExpectedDate =
+      dto.paymentExpectedDate !== undefined ? toDate(dto.paymentExpectedDate) : undefined;
+
+    const updatedJob = await this.jobsRepository.update(id, {
       name: dto.name,
       description: dto.description,
       jobType: dto.jobType,
@@ -111,9 +116,15 @@ export class JobsService {
       receivedDate: dto.receivedDate !== undefined ? toDate(dto.receivedDate) : undefined,
       demoDate: dto.demoDate !== undefined ? toDate(dto.demoDate) : undefined,
       postDate: dto.postDate !== undefined ? toDate(dto.postDate) : undefined,
-      paymentExpectedDate:
-        dto.paymentExpectedDate !== undefined ? toDate(dto.paymentExpectedDate) : undefined,
+      paymentExpectedDate: parsedPaymentExpectedDate,
     });
+
+    // Tự động đồng bộ ngày thanh toán dự kiến sang các khoản thanh toán chưa hoàn tất của job
+    if (parsedPaymentExpectedDate !== undefined) {
+      await this.jobsRepository.syncPendingPaymentsExpectedDate(id, parsedPaymentExpectedDate);
+    }
+
+    return updatedJob;
   }
 
   // ─────────────────────────────────────────────────────────────────

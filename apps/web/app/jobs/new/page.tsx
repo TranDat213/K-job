@@ -13,29 +13,10 @@ import {
   CreateJobPayload,
   CreateBrandPayload,
 } from '../../../lib/api';
+import { JOB_TYPE_OPTIONS, JOB_STATUS_OPTIONS, JOB_TYPE_LABELS } from '../../../constants';
 
-const JOB_TYPES = [
-  { value: 'PRODUCT_REVIEW', label: 'Review sản phẩm' },
-  { value: 'EVENT', label: 'Sự kiện' },
-  { value: 'SELF_PURCHASE', label: 'Tự mua' },
-  { value: 'CONTENT_CREATION', label: 'Tạo nội dung' },
-  { value: 'AFFILIATE', label: 'Affiliate' },
-  { value: 'OTHER', label: 'Khác' },
-];
-
-const JOB_STATUSES = [
-  { value: 'NEW', label: 'Mới tạo (NEW)' },
-  { value: 'WAITING_PRODUCT', label: 'Chờ nhận sản phẩm' },
-  { value: 'PRODUCT_RECEIVED', label: 'Đã nhận sản phẩm' },
-  { value: 'CREATING', label: 'Đang tạo nội dung' },
-  { value: 'DEMO', label: 'Đã gửi demo / chờ duyệt' },
-  { value: 'REVISION', label: 'Yêu cầu chỉnh sửa' },
-  { value: 'READY_TO_POST', label: 'Sẵn sàng đăng' },
-  { value: 'POSTED', label: 'Đã đăng bài' },
-  { value: 'WAITING_PAYMENT', label: 'Chờ thanh toán' },
-  { value: 'PAID', label: 'Đã thanh toán' },
-  { value: 'COMPLETED', label: 'Hoàn thành' },
-];
+const JOB_TYPES = JOB_TYPE_OPTIONS;
+const JOB_STATUSES = JOB_STATUS_OPTIONS;
 
 // ─────────────────────────────────────────────────────────────────
 // Inline Brand Creation Modal
@@ -227,11 +208,17 @@ function NewJobForm() {
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [showBrandModal, setShowBrandModal] = useState(false);
 
-  // Templates
+  // Templates & Tasks
   const [templates, setTemplates] = useState<JobTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(preselectedTemplateId);
   const [templateDetail, setTemplateDetail] = useState<JobTemplateDetail | null>(null);
   const [loadingTemplateDetail, setLoadingTemplateDetail] = useState(false);
+  const [jobTasks, setJobTasks] = useState<
+    Array<{ title: string; daysBeforePost: number; description?: string }>
+  >([]);
+
+  const systemTemplates = templates.filter((t) => t.scope === 'SYSTEM');
+  const customTemplates = templates.filter((t) => t.scope !== 'SYSTEM');
 
   // Form fields
   const [name, setName] = useState('');
@@ -275,19 +262,71 @@ function NewJobForm() {
       .catch(() => {});
   }, [preselectedTemplateId]);
 
-  // When template selection changes, fetch detail to preview auto-generated tasks
+  // When template selection changes, fetch detail to load tasks into editable list
   useEffect(() => {
     if (!selectedTemplateId) {
       setTemplateDetail(null);
+      setJobTasks([]);
       return;
     }
     setLoadingTemplateDetail(true);
     templatesApi
       .getOne(selectedTemplateId)
-      .then((r) => setTemplateDetail(r.data))
-      .catch(() => setTemplateDetail(null))
+      .then((r) => {
+        setTemplateDetail(r.data);
+        if (r.data?.templateTasks && r.data.templateTasks.length > 0) {
+          setJobTasks(
+            r.data.templateTasks.map((tt) => ({
+              title: tt.title,
+              daysBeforePost: tt.daysBeforePost ?? 0,
+              description: tt.description ?? '',
+            }))
+          );
+        } else {
+          setJobTasks([]);
+        }
+      })
+      .catch(() => {
+        setTemplateDetail(null);
+        setJobTasks([]);
+      })
       .finally(() => setLoadingTemplateDetail(false));
   }, [selectedTemplateId]);
+
+  const updateJobTask = (
+    index: number,
+    patch: Partial<{ title: string; daysBeforePost: number; description?: string }>
+  ) => {
+    setJobTasks((prev) => prev.map((t, i) => (i === index ? { ...t, ...patch } : t)));
+  };
+
+  const removeJobTask = (index: number) => {
+    setJobTasks((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const moveJobTask = (index: number, dir: -1 | 1) => {
+    setJobTasks((prev) => {
+      const nextIndex = index + dir;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[nextIndex];
+      copy[nextIndex] = temp;
+      return copy;
+    });
+  };
+
+  const addEmptyJobTask = () => {
+    setJobTasks((prev) => [...prev, { title: '', daysBeforePost: 0 }]);
+  };
+
+  const getCalculatedDueDate = (postDateStr: string, daysBeforePost: number) => {
+    if (!postDateStr) return null;
+    const d = new Date(postDateStr);
+    if (isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() - daysBeforePost);
+    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
 
   const handleBrandCreated = (newBrand: Brand) => {
     setBrands((prev) => [newBrand, ...prev]);
@@ -312,9 +351,6 @@ function NewJobForm() {
   const removeAttachmentItem = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
-
-  const systemTemplates = templates.filter((t) => t.scope === 'SYSTEM');
-  const userTemplates = templates.filter((t) => t.scope === 'USER');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -347,6 +383,17 @@ function NewJobForm() {
       paymentAmount: paymentAmount ? Number(paymentAmount) : undefined,
       initialNote: initialNote.trim() || undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
+      tasks:
+        jobTasks.length > 0
+          ? jobTasks
+              .filter((t) => t.title.trim())
+              .map((t, idx) => ({
+                title: t.title.trim(),
+                description: t.description?.trim() || undefined,
+                order: idx,
+                daysBeforePost: t.daysBeforePost,
+              }))
+          : undefined,
     };
 
     try {
@@ -462,20 +509,20 @@ function NewJobForm() {
               <option value="">— Không dùng mẫu (tạo tasks thủ công) —</option>
 
               {systemTemplates.length > 0 && (
-                <optgroup label="🏢 Mẫu mặc định hệ thống">
+                <optgroup label="📋 Mẫu có sẵn của hệ thống">
                   {systemTemplates.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} {t._count ? `(${t._count.templateTasks} task)` : ''}
+                      {t.name} {t.jobType ? `(${JOB_TYPE_LABELS[t.jobType] ?? t.jobType})` : ''}
                     </option>
                   ))}
                 </optgroup>
               )}
 
-              {userTemplates.length > 0 && (
-                <optgroup label="👤 Mẫu của tôi">
-                  {userTemplates.map((t) => (
+              {customTemplates.length > 0 && (
+                <optgroup label="✨ Mẫu tùy chỉnh của bạn">
+                  {customTemplates.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} {t._count ? `(${t._count.templateTasks} task)` : ''}
+                      {t.name} {t.jobType ? `(${JOB_TYPE_LABELS[t.jobType] ?? t.jobType})` : ''}
                     </option>
                   ))}
                 </optgroup>
@@ -483,44 +530,128 @@ function NewJobForm() {
             </select>
           </div>
 
-          {/* Preview tasks from selected template */}
-          {selectedTemplateId && (
-            <div className="bg-muted/30 border border-card-border rounded-xl p-4 space-y-2">
+          {/* Interactive task editor from selected template or custom */}
+          {(selectedTemplateId || jobTasks.length > 0) && (
+            <div className="bg-muted/30 border border-card-border rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground flex items-center gap-1.5">
-                  <span>⚡</span> Nhiệm vụ sẽ tự động sinh khi tạo job:
+                  <span>⚡</span> Danh sách nhiệm vụ sẽ tự động tạo ({jobTasks.length}):
                 </span>
-                {loadingTemplateDetail && <span>Đang tải danh sách task...</span>}
+                <div className="flex items-center gap-2">
+                  {loadingTemplateDetail && <span className="text-xs">Đang tải...</span>}
+                  <button
+                    type="button"
+                    onClick={addEmptyJobTask}
+                    className="px-2.5 py-1 bg-card border border-card-border hover:border-primary text-foreground rounded-lg text-xs font-medium transition-colors"
+                  >
+                    + Thêm nhiệm vụ
+                  </button>
+                </div>
               </div>
 
-              {templateDetail?.templateTasks && templateDetail.templateTasks.length > 0 ? (
-                <ul className="space-y-1.5 mt-2">
-                  {templateDetail.templateTasks.map((tt, idx) => (
-                    <li
-                      key={tt.id || idx}
-                      className="text-xs flex items-center justify-between bg-card px-3 py-2 rounded-lg border border-card-border"
-                    >
-                      <span className="text-foreground font-medium">
-                        {idx + 1}. {tt.title}
-                      </span>
-                      <span className="text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                        {tt.daysBeforePost > 0
-                          ? `${tt.daysBeforePost} ngày trước ngày đăng`
-                          : 'Đúng ngày đăng'}
-                      </span>
-                    </li>
-                  ))}
+              {jobTasks.length > 0 ? (
+                <ul className="space-y-2 mt-2">
+                  {jobTasks.map((t, idx) => {
+                    const calculatedDue = getCalculatedDueDate(postDate, t.daysBeforePost);
+                    return (
+                      <li
+                        key={idx}
+                        className="flex flex-col sm:flex-row sm:items-center gap-2 bg-card p-2.5 rounded-xl border border-card-border shadow-sm group"
+                      >
+                        {/* Order & Move buttons */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="w-5 text-center text-xs font-bold text-muted-foreground font-mono">
+                            {idx + 1}
+                          </span>
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => moveJobTask(idx, -1)}
+                              className="text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-20 leading-none p-0.5"
+                              title="Di chuyển lên"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === jobTasks.length - 1}
+                              onClick={() => moveJobTask(idx, 1)}
+                              className="text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-20 leading-none p-0.5"
+                              title="Di chuyển xuống"
+                            >
+                              ▼
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Title input */}
+                        <input
+                          type="text"
+                          required
+                          value={t.title}
+                          onChange={(e) => updateJobTask(idx, { title: e.target.value })}
+                          placeholder="Tiêu đề nhiệm vụ..."
+                          className="flex-1 px-3 py-1.5 bg-input border border-input-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+
+                        {/* Days before post input */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 text-xs text-muted-foreground">
+                          <input
+                            type="number"
+                            min="0"
+                            max="365"
+                            value={t.daysBeforePost}
+                            onChange={(e) => updateJobTask(idx, { daysBeforePost: Number(e.target.value) })}
+                            className="w-14 px-2 py-1.5 bg-input border border-input-border rounded-lg text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <span className="whitespace-nowrap">ngày trước</span>
+                        </div>
+
+                        {/* Calculated due date preview */}
+                        {calculatedDue && (
+                          <span className="text-[11px] bg-soft-sage/40 text-soft-sage-foreground px-2 py-1 rounded-md font-medium whitespace-nowrap flex-shrink-0">
+                            Hạn: {calculatedDue}
+                          </span>
+                        )}
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => removeJobTask(idx)}
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-1.5 rounded-lg text-xs transition-colors flex-shrink-0"
+                          title="Xóa nhiệm vụ này"
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 !loadingTemplateDetail && (
-                  <p className="text-xs text-muted-foreground">Mẫu này chưa có danh sách task.</p>
+                  <p className="text-xs text-muted-foreground py-2 text-center">
+                    Chưa có nhiệm vụ nào. Nhấn "+ Thêm nhiệm vụ" để thêm vào job này.
+                  </p>
                 )
               )}
 
               <p className="text-xs text-muted-foreground pt-1">
-                💡 Khi nhập <strong>Ngày đăng</strong> ở phần dưới, hệ thống sẽ tự tính ngày đến hạn
-                (due date) tương ứng cho từng task!
+                💡 Bạn có thể trực tiếp sửa tiêu đề, đổi số ngày trước hoặc thêm/xóa nhiệm vụ. Khi nhập{' '}
+                <strong>Ngày đăng</strong> ở Bước 3, hệ thống sẽ tự tính hạn chót tương ứng cho từng task!
               </p>
+            </div>
+          )}
+
+          {!selectedTemplateId && jobTasks.length === 0 && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={addEmptyJobTask}
+                className="text-xs text-primary hover:underline font-medium flex items-center gap-1"
+              >
+                + Tự tạo danh sách nhiệm vụ ban đầu cho Job này (tùy chọn)
+              </button>
             </div>
           )}
         </div>
