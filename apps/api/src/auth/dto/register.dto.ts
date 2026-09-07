@@ -8,30 +8,24 @@ import {
 } from 'class-validator';
 
 export class RegisterDto {
-  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsEmail({}, { message: 'Email không đúng định dạng' })
   email!: string;
 
-  /**
-   * Password rules:
-   * - At least 8 characters
-   * - At most 72 characters (bcrypt limit)
-   * - Must contain at least one letter and one number
-   */
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters' })
-  @MaxLength(72, { message: 'Password must be at most 72 characters' })
+  @IsString({ message: 'Mật khẩu phải là chuỗi ký tự' })
+  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  @MaxLength(72, { message: 'Mật khẩu tối đa 72 ký tự' })
   @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
-    message: 'Password must contain at least one letter and one number',
+    message: 'Mật khẩu phải chứa ít nhất một chữ cái và một chữ số',
   })
   password!: string;
 
-  @IsString()
-  @MinLength(2, { message: 'Name must be at least 2 characters' })
-  @MaxLength(100, { message: 'Name must be at most 100 characters' })
+  @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
+  @MinLength(2, { message: 'Họ và tên phải có ít nhất 2 ký tự' })
+  @MaxLength(100, { message: 'Họ và tên tối đa 100 ký tự' })
   name!: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  @IsString({ message: 'Số điện thoại phải là chuỗi ký tự' })
+  @MaxLength(20, { message: 'Số điện thoại tối đa 20 ký tự' })
   phone?: string;
 }

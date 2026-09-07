@@ -13,10 +13,6 @@ export interface JwtPayload {
   exp?: number;
 }
 
-/**
- * JWT strategy that reads the token from the httpOnly cookie 'koc_token'.
- * Falls back to the Authorization Bearer header for API clients.
- */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
@@ -36,18 +32,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  /**
-   * Called after JWT signature is verified.
-   * Return value is attached to request.user.
-   * We re-fetch the user from DB to ensure they still exist and are not deleted.
-   */
   async validate(payload: JwtPayload) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       throw new UnauthorizedException('User not found or account deleted');
     }
-    // Never expose passwordHash
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash, ...safeUser } = user;
     return safeUser;
   }
