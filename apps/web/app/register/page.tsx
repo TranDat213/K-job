@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 import { authApi } from '@/lib/api';
 
 export default function RegisterPage() {
@@ -10,6 +11,7 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export default function RegisterPage() {
 
     try {
       await authApi.register({ name, email, password, phone: phone || undefined });
-      router.push('/dashboard');
+      router.push('/login');
       router.refresh();
     } catch (err: any) {
       setError(err.message || 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.');
@@ -122,17 +124,29 @@ export default function RegisterPage() {
               <label htmlFor="password" className="block text-sm font-medium text-foreground">
                 Mật khẩu
               </label>
-              <div className="mt-1.5">
+              <div className="mt-1.5 relative">
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Tối thiểu 8 ký tự, 1 chữ, 1 số"
-                  className="appearance-none block w-full px-4 py-3 bg-input border border-input-border rounded-xl shadow-sm placeholder-text-muted text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all sm:text-sm"
+                  className="appearance-none block w-full px-4 py-3 pr-12 bg-input border border-input-border rounded-xl shadow-sm placeholder-text-muted text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all sm:text-sm"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 transition-colors cursor-pointer"
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
               </div>
             </div>
 

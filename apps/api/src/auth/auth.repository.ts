@@ -4,11 +4,8 @@ import { Prisma, User } from '@prisma/client';
 
 @Injectable()
 export class AuthRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Find active user by email for auth check
-  // ─────────────────────────────────────────────────────────────────
   async findUserByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findFirst({
       where: {
@@ -18,9 +15,6 @@ export class AuthRepository {
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Find active user by ID
-  // ─────────────────────────────────────────────────────────────────
   async findUserById(id: string): Promise<User | null> {
     return this.prisma.user.findFirst({
       where: {
@@ -30,9 +24,6 @@ export class AuthRepository {
     });
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Create user in DB during registration
-  // ─────────────────────────────────────────────────────────────────
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
     return this.prisma.user.create({
       data,
