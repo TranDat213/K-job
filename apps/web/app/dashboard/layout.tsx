@@ -1,3 +1,5 @@
+'use client';
+
 import { DashboardShell } from '@/app/_components/dashboard-shell';
 import { AuthGate } from '@/app/_components/auth-gate';
 
