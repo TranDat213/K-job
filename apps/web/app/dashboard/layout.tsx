@@ -1,14 +1,14 @@
-import { redirect } from 'next/navigation';
-import { getMe } from '@/lib/auth-server';
 import { DashboardShell } from '@/app/_components/dashboard-shell';
+import { AuthGate } from '@/app/_components/auth-gate';
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getMe();
-  if (!user) redirect('/login');
-
-  return <DashboardShell user={user}>{children}</DashboardShell>;
+  return (
+    <AuthGate>
+      {(user) => <DashboardShell user={user}>{children}</DashboardShell>}
+    </AuthGate>
+  );
 }
